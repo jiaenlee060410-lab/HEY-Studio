@@ -6,7 +6,8 @@ import { useGame } from '../game/store'
 
 const blockers = [
   {x:-5,z:0,w:.45,d:32},{x:5,z:0,w:.45,d:32},{x:0,z:-15,w:10,d:.45},{x:0,z:15,w:10,d:.45},
-  ...[-9,-3,3,9].map(z=>({x:-3.9,z,w:.65,d:.65}))
+  ...[-9,-3,3,9].map(z=>({x:-3.9,z,w:.65,d:.65})),
+  {x:1.8,z:4,w:5.6,d:.35},{x:-1.8,z:-4,w:5.6,d:.35}
 ]
 const spawn = new THREE.Vector3(0,1.65,12)
 export function Player({ onTarget }: {onTarget:(id:string|null)=>void}) {
