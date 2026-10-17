@@ -21,10 +21,10 @@ export function Player({ onTarget }: {onTarget:(id:string|null)=>void}) {
     const next=camera.position.clone().add(velocity.current); const clear=blockers.every(b=>Math.abs(next.x-b.x)>b.w/2+.25||Math.abs(next.z-b.z)>b.d/2+.25);if(clear)camera.position.copy(next);camera.position.y=1.65
     const progress=useGame.getState()
     const targets=[
-      ...(!progress.ticketCollected?[{id:'ticket',p:new THREE.Vector3(-1.5,1.3,5)}]:[]),
-      {id:'seat',p:new THREE.Vector3(1.5,1,1)},
-      ...(!progress.boxUnlocked?[{id:'box',p:new THREE.Vector3(1.7,1.05,-.1)}]:[]),
-      ...(progress.boxUnlocked&&!progress.cinemaKeyCollected?[{id:'key',p:new THREE.Vector3(1.7,1.05,-.1)}]:[]),
+      ...(!progress.ticketCollected?[{id:'ticket',p:new THREE.Vector3(-2.9,1.18,9.4)}]:[]),
+      {id:'seat',p:new THREE.Vector3(-1.5,1,2)},
+      ...(!progress.boxUnlocked?[{id:'box',p:new THREE.Vector3(3.15,1.05,-8.2)}]:[]),
+      ...(progress.boxUnlocked&&!progress.cinemaKeyCollected?[{id:'key',p:new THREE.Vector3(3.15,1.05,-8.2)}]:[]),
       {id:'door',p:new THREE.Vector3(0,1.65,-13.8)},
     ]
     // Low props such as the wooden box should be usable without pixel-perfect aim.
