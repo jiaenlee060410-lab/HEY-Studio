@@ -1,34 +1,372 @@
-import { Float, Html, RoundedBox, Sparkles } from '@react-three/drei'
-import { useGame } from '../game/store'
-import * as THREE from 'three'
+import { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { CuboidCollider, RigidBody } from "@react-three/rapier";
+import * as T from "three";
+import { useGame } from "../game/store";
+import { solids, chairs, targets, type V3 } from "./layout";
+import { chipped, tube, brokenOpening, fragment, ruinedWall } from "./geometry";
+import { material, featuredVelvet } from "./materials";
+import { Atmosphere } from "./Atmosphere";
+import {
+  Label,
+  Graffiti,
+  Ticket,
+  Water,
+  Debris,
+  Rebar,
+  Projector,
+  Crumbling,
+} from "./Details";
 
-const concrete = '#57534d', agedConcrete = '#3d3a35', velvet = '#4e1619', wood = '#2d1a11'
-
-function Seat({ x, z, label, featured }: { x:number; z:number; label?:string; featured?:boolean }) {
-  return <group position={[x,.38,z]} rotation={[0,(x % 2) * .025,0]}>
-    <RoundedBox args={[1.02,.38,.72]} radius={.1} smoothness={4} castShadow receiveShadow><meshStandardMaterial color={velvet} roughness={.72}/></RoundedBox>
-    <RoundedBox position={[0,.5,.24]} args={[1.02,.74,.14]} radius={.07} smoothness={4} castShadow><meshStandardMaterial color="#662126" roughness={.78}/></RoundedBox>
-    {[-.4,.4].map(side=><mesh key={side} position={[side,.13,.18]} castShadow><cylinderGeometry args={[.032,.04,.42,8]}/><meshStandardMaterial color="#211c19" roughness={.58} metalness={.35}/></mesh>)}
-    <RoundedBox position={[-.55,.32,.02]} args={[.08,.35,.55]} radius={.04} smoothness={3}><meshStandardMaterial color="#281313" roughness={.7}/></RoundedBox><RoundedBox position={[.55,.32,.02]} args={[.08,.35,.55]} radius={.04} smoothness={3}><meshStandardMaterial color="#281313" roughness={.7}/></RoundedBox>
-    {label&&<Html position={[.58,.18,.15]} transform distanceFactor={8}><span className="seat-label">{label}</span></Html>}{featured&&<pointLight color="#f2a950" intensity={.75} distance={2.8}/>} 
-  </group>
+function Chair({
+  p,
+  featured = false,
+  broken = false,
+}: {
+  p: V3;
+  featured?: boolean;
+  broken?: boolean;
+}) {
+  const cloth = useMemo(
+    () => (featured ? featuredVelvet() : material("velvet")),
+    [featured],
+  );
+  return (
+    <group position={p}>
+      <mesh
+        position={[0, 0.51, 0]}
+        rotation={[0, 0, broken ? 0.13 : 0]}
+        geometry={chipped([0.82, 0.22, 0.73], 4, true)}
+        material={cloth}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        position={[0, 0.99, 0.32]}
+        rotation={[broken ? 0.58 : -0.08, 0, broken ? 0.16 : 0]}
+        geometry={chipped([0.85, 0.85, 0.19], broken ? 18 : 3, true)}
+        material={cloth}
+        castShadow
+        receiveShadow
+      />
+      <group position={[0,0.99,0.32]} rotation={[broken ? .58 : -.08,0,broken ? .16 : 0]}>
+        <mesh geometry={tube([[-.34,-.32,-.103],[-.37,.25,-.103],[-.29,.36,-.103],[.29,.36,-.103],[.37,.25,-.103],[.34,-.32,-.103]],.006)} material={material('velvet')}/>
+        {[-.14,.14].map(x=><mesh key={x} geometry={tube([[x,-.25,-.102],[x,.1,-.105],[x,.3,-.102]],.003)} material={material('velvet')}/>)}
+      </group>
+      {[-0.5, 0.5].map((x) => (
+        <group key={x}>
+          <mesh
+            geometry={tube(
+              [
+                [x, 0.04, 0.25],
+                [x, 0.35, 0.25],
+                [x, 0.7, 0.3],
+                [x, 0.7, -0.32],
+              ],
+              0.022,
+            )}
+            material={material("rust")}
+            castShadow
+          />
+          <mesh
+            position={[x, 0.73, -0.02]}
+            geometry={chipped([0.12, 0.1, 0.62], 3, true)}
+            material={material("wood")}
+            castShadow
+          />
+        </group>
+      ))}
+      {broken && (
+        <mesh
+          position={[0.1, 0.55, -0.32]}
+          geometry={chipped([0.19, 0.04, 0.12], 9)}
+          material={material("paper")}
+        />
+      )}
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider position={[0, 0.35, 0]} args={[0.57, 0.35, 0.48]} />
+        <CuboidCollider position={[0, 1, 0.32]} args={[0.47, 0.45, 0.16]} />
+      </RigidBody>
+    </group>
+  );
 }
-function Pillar({x,z}:{x:number;z:number}) { return <group position={[x,3,z]}><RoundedBox args={[.66,6,.66]} radius={.07} smoothness={3} castShadow receiveShadow><meshStandardMaterial color={concrete} roughness={.92}/></RoundedBox><mesh position={[0,2.75,0]}><boxGeometry args={[.82,.15,.82]}/><meshStandardMaterial color="#686158" roughness={1}/></mesh></group> }
-function WetPatch({x,z,scale=1}:{x:number;z:number;scale?:number}) { return <mesh position={[x,.012,z]} rotation={[-Math.PI/2,0,0]} scale={[scale,scale*.55,1]} receiveShadow><circleGeometry args={[1,32]}/><meshStandardMaterial color="#151a1a" transparent opacity={.55} roughness={.08} metalness={.75}/></mesh> }
-function Barrier({x,z,width}:{x:number;z:number;width:number}) { return <group position={[x,.55,z]} rotation={[0,.05,0]}><RoundedBox args={[width,1.1,.24]} radius={.04} smoothness={3} castShadow><meshStandardMaterial color="#49433b" roughness={.93}/></RoundedBox><mesh position={[-width*.22,.1,.16]} rotation={[0,0,-.35]}><boxGeometry args={[.35,1.05,.12]}/><meshStandardMaterial color="#2b2925" roughness={.8}/></mesh><mesh position={[width*.27,.23,.16]} rotation={[0,0,.28]}><boxGeometry args={[.28,.75,.1]}/><meshStandardMaterial color="#67503a" roughness={.75}/></mesh></group> }
-
-export function Cinema(){ const s=useGame(); return <>
-  <color attach="background" args={['#141311']}/><fog attach="fog" args={['#171512',10,33]}/><hemisphereLight args={['#d2c7b5','#171818',1.25]}/><ambientLight intensity={.22}/><directionalLight position={[-7,9,8]} intensity={2.8} color="#f7b65a" castShadow shadow-mapSize={[2048,2048]} shadow-camera-far={34}/><pointLight position={[0,4,-10]} color="#b69163" intensity={.35} distance={9}/><Sparkles count={150} scale={[9,5.4,28]} size={1.45} speed={.12} color="#efc183"/>
-  <mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[10,30]}/><meshStandardMaterial color="#373633" roughness={.38} metalness={.28}/></mesh><WetPatch x={-1.8} z={7} scale={1.4}/><WetPatch x={2.1} z={-5.5} scale={1.25}/><WetPatch x={-.5} z={-11} scale={.95}/>
-  <mesh position={[0,6.15,0]} receiveShadow><boxGeometry args={[10,.3,30]}/><meshStandardMaterial color="#46433d" roughness={.96}/></mesh><mesh position={[0,3,-15]} receiveShadow><boxGeometry args={[10,6,.35]}/><meshStandardMaterial color={agedConcrete} roughness={.96}/></mesh><mesh position={[-4.9,3,0]} receiveShadow><boxGeometry args={[.2,6,30]}/><meshStandardMaterial color={agedConcrete} roughness={.95}/></mesh><mesh position={[4.9,3,0]} receiveShadow><boxGeometry args={[.2,6,30]}/><meshStandardMaterial color={agedConcrete} roughness={.95}/></mesh>
-  {[-9,-3,3,9].flatMap(z=>[<Pillar key={'a'+z} x={-4.58} z={z}/>,<Pillar key={'b'+z} x={4.58} z={z}/>])}
-  <Barrier x={1.8} z={4} width={5.6}/><Barrier x={-1.8} z={-4} width={5.6}/>
-  {[-10,-6,-2,2,6,10].map(z=><group key={z} position={[-4.77,3,z]}><mesh><boxGeometry args={[.05,2.55,2.25]}/><meshStandardMaterial color="#e8aa55" emissive="#b76625" emissiveIntensity={.45} transparent opacity={.72}/></mesh><mesh position={[.04,0,0]} rotation={[0,0,Math.PI/2]}><boxGeometry args={[.08,2.2,.06]}/><meshStandardMaterial color="#282521"/></mesh></group>)}
-  <group>{[-1.5,0,1.5].flatMap(x=>[5,2,-1,-4].map(z=><Seat key={x+':'+z} x={x} z={z} label={s.ticketCollected&&x===-1.5&&z===2?'B12':undefined} featured={x===-1.5&&z===2}/>))}</group>
-  <group position={[-2.9,.65,9.65]} rotation={[0,.22,0]}><RoundedBox args={[1.75,1.05,.55]} radius={.06} smoothness={3} castShadow><meshStandardMaterial color="#3a2820" roughness={.75}/></RoundedBox><mesh position={[0,.6,-.3]}><boxGeometry args={[1.5,.06,.05]}/><meshStandardMaterial color="#8b6b4b" roughness={.55}/></mesh></group>
-  {!s.ticketCollected&&<Float speed={1.15} rotationIntensity={.1}><RoundedBox position={[-2.9,1.18,9.4]} rotation={[-1.45,.15,0]} args={[.5,.025,.25]} radius={.01} smoothness={2} castShadow><meshStandardMaterial color="#d6c19a" roughness={.66}/></RoundedBox></Float>}
-  <group position={[3.15,.47,-8.2]}>{s.boxUnlocked&&<mesh position={[0,.47,-.22]} rotation={[-.55,0,0]} castShadow><boxGeometry args={[.76,.08,.5]}/><meshStandardMaterial color="#4b2d1c" roughness={.75}/></mesh>}<RoundedBox args={[.78,.42,.52]} radius={.045} smoothness={3} castShadow><meshStandardMaterial color={wood} roughness={.78}/></RoundedBox><mesh position={[0,.22,0]}><boxGeometry args={[.82,.025,.055]}/><meshStandardMaterial color="#876038" metalness={.3} roughness={.48}/></mesh><mesh position={[.7,.65,0]}><cylinderGeometry args={[.26,.26,1.5,16]}/><meshStandardMaterial color="#31302c" roughness={.7} metalness={.4}/></mesh></group>
-  {s.boxUnlocked&&!s.cinemaKeyCollected&&<Float speed={1.2}><group position={[3.15,.98,-8.2]} rotation={[0,0,Math.PI/2]}><mesh><cylinderGeometry args={[.065,.065,.5,12]}/><meshStandardMaterial color="#bda876" metalness={.9} roughness={.28}/></mesh><mesh position={[0,.3,0]}><torusGeometry args={[.14,.03,8,16]}/><meshStandardMaterial color="#bda876" metalness={.9} roughness={.28}/></mesh></group></Float>}
-  <group position={[0,1.8,-14.72]}>{!s.exitDoorUnlocked&&<RoundedBox castShadow position={[0,0,.1]} args={[2.15,3.75,.16]} radius={.04} smoothness={3}><meshStandardMaterial color="#2a1710" roughness={.72}/></RoundedBox>}<RoundedBox position={[0,0,-.04]} args={[2.5,4.15,.13]} radius={.05} smoothness={3}><meshStandardMaterial color="#5b5145" roughness={.92}/></RoundedBox></group>
-  <Html position={[0,2.9,10]} center><div className="sign">2F · CINEMA<br/><small>MEMORY SYNC</small></div></Html>
-</> }
+function Exit() {
+  const open = useGame((s) => s.exitDoorUnlocked),
+    hinge = useRef<T.Group>(null);
+  useFrame((_, dt) => {
+    if (hinge.current)
+      hinge.current.rotation.y = T.MathUtils.damp(
+        hinge.current.rotation.y,
+        open ? -1.45 : 0,
+        2,
+        dt,
+      );
+  });
+  return (
+    <group position={[4.5, 0, -19.55]}>
+      <group ref={hinge}>
+        <mesh
+          position={[1, 1.5, 0]}
+          geometry={chipped([2, 3, 0.12])}
+          material={material("wood")}
+          castShadow
+        />
+        <mesh
+          position={[1.8, 1.3, 0.11]}
+          geometry={tube(
+            [
+              [0, 0, 0],
+              [0, 0.12, 0],
+              [0.1, 0.12, 0],
+            ],
+            0.025,
+          )}
+          material={material("rust")}
+        />
+      </group>
+      <Label p={[1, 3.25, 0.02]} size={[2, 0.32]} lines={["5F / STAGE"]} />
+    </group>
+  );
+}
+export function Cinema() {
+  const s = useGame(),
+    opened = useMemo(brokenOpening, []),
+    stone = useMemo(() => fragment(47), []);
+  return (
+    <>
+      <Atmosphere />
+      <mesh
+        position={[0, -0.13, 0]}
+        geometry={chipped([20, 0.26, 40])}
+        material={material("floor", 5, 10)}
+        receiveShadow
+      />
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider args={[10, 0.2, 20]} position={[0, -0.2, 0]} />
+      </RigidBody>
+      {solids.map((b) => (
+        <group key={b.id} position={b.p}>
+          <mesh
+            geometry={
+              b.id.startsWith("bend")
+                ? ruinedWall(b.size, b.id.length)
+                : chipped(b.size, b.id.length)
+            }
+            material={material(
+              b.kind === "counter"
+                ? "wood"
+                : b.kind === "cabinet"
+                  ? "rust"
+                  : b.kind === "screen"
+                    ? "paper"
+                    : "concrete",
+              b.id.startsWith("bend")
+                ? 0.25
+                : Math.max(1, Math.max(b.size[0], b.size[2]) / 4),
+              b.id.startsWith("bend") ? 0.25 : Math.max(1, b.size[1] / 4),
+            )}
+            castShadow
+            receiveShadow
+          />
+          <RigidBody type="fixed" colliders={false}>
+            <CuboidCollider
+              args={[b.size[0] / 2, b.size[1] / 2, b.size[2] / 2]}
+            />
+          </RigidBody>
+        </group>
+      ))}
+      {/* Ceiling ribs and segmented slabs frame an actual west-side opening. */}
+      {[-16, -10, -4, 2, 8, 14].map((z) => (
+        <group key={z}>
+          <mesh
+            position={[0, 5.9, z]}
+            geometry={chipped([20, 0.32, 0.55])}
+            material={material("concrete", 4, 1)}
+            castShadow
+          />
+          <RigidBody type="fixed" colliders={false}>
+            <CuboidCollider position={[0, 5.9, z]} args={[10, 0.16, 0.275]} />
+          </RigidBody>
+        </group>
+      ))}
+      <mesh
+        position={[1, 6.12, 0]}
+        geometry={chipped([18, 0.18, 40])}
+        material={material("concrete", 4, 8)}
+        receiveShadow
+      />
+      <mesh
+        position={[-9.7, 2.2, -2]}
+        rotation={[0, Math.PI / 2, 0]}
+        geometry={opened}
+        material={material("concrete")}
+        castShadow
+      />
+      <mesh
+        position={[-9.7, 2.2, 5]}
+        rotation={[0, -Math.PI / 2, 0]}
+        geometry={opened}
+        material={material("concrete")}
+        castShadow
+      />
+      <Rebar p={[-9.5, 2.2, 4.7]} />
+      <Rebar p={[-9.6, 2.2, -1.6]} />
+      <Rebar p={[3.2, 3.2, -6]} />
+      {chairs.map((c) => (
+        <Chair key={c.id} {...c} />
+      ))}
+      <group position={[8.1, 0.4, -18.5]} rotation={[0, 0, 1.25]}>
+        <Chair p={[0, 0, 0]} broken />
+      </group>
+      <Chair p={[6.1, 0, -18.7]} broken />
+      {/* Bent ticket gates use swept rusted profiles and conservative physical bounds. */}
+      {[-3, -1].map((x) => (
+        <group key={x} position={[x, 0, 16.5]}>
+          <mesh
+            geometry={tube(
+              [
+                [0, 0.04, 0],
+                [0, 1, 0],
+                [0.2, 1.1, 0],
+                [0.8, 0.65, 0.2],
+                [1.1, 0.3, 0.2],
+              ],
+              0.035,
+            )}
+            material={material("rust")}
+            castShadow
+          />
+          <RigidBody type="fixed" colliders={false}>
+            <CuboidCollider
+              position={[0.5, 0.45, 0]}
+              args={[0.6, 0.45, 0.15]}
+            />
+          </RigidBody>
+        </group>
+      ))}
+      <mesh
+        position={[-6, 0.012, 14.5]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        geometry={chipped([0.8, 0.65, 0.01])}
+        material={material("floor")}
+      />
+      {!s.ticketCollected && <Ticket p={[-6, 0.08, 14.5]} />}
+      <mesh
+        position={[-6.17, 0.075, 14.55]}
+        scale={[0.2, 0.4, 0.2]}
+        geometry={stone}
+        material={material("concrete")}
+        receiveShadow
+      />
+      {!s.seatClueRead && <Ticket p={[-4, 0.69, 2.05]} />}
+      <group position={[8.2, 0.15, -17.4]}>
+        <mesh
+          geometry={chipped([0.48, 0.28, 0.42])}
+          material={material("rust")}
+          castShadow
+        />
+        <mesh
+          position={[0, s.boxUnlocked ? 0.35 : 0.15, s.boxUnlocked ? -0.2 : 0]}
+          rotation={[s.boxUnlocked ? -1.2 : 0, 0, 0]}
+          geometry={chipped([0.5, 0.035, 0.44])}
+          material={material("rust")}
+          castShadow
+        />
+        <mesh
+          position={[0, 0.06, 0.222]}
+          geometry={chipped([0.065, 0.12, 0.035])}
+          material={material("rust")}
+        />
+        <mesh
+          geometry={tube(
+            [
+              [-0.23, 0.08, -0.21],
+              [-0.23, 0.08, 0.21],
+              [0.23, 0.08, 0.21],
+              [0.23, 0.08, -0.21],
+            ],
+            0.009,
+          )}
+          material={material("rust")}
+        />
+        <RigidBody type="fixed" colliders={false}>
+          <CuboidCollider args={[0.24, 0.14, 0.21]} />
+        </RigidBody>
+      </group>
+      <Projector />
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider position={[7, 0.9, -12]} args={[0.43, 0.9, 0.55]} />
+      </RigidBody>
+      <Graffiti revealed={s.dreamRevealed} />
+      <Crumbling active={s.dreamRevealed} />
+      {s.dreamRevealed && !s.dreamKeyCollected && (
+        <group position={[-6, 1.35, -6.5]}>
+          <mesh
+            geometry={tube(
+              [
+                [-0.06, -0.14, 0],
+                [0, -0.15, 0],
+                [0, 0.12, 0],
+                [0.06, 0.12, 0],
+              ],
+              0.022,
+            )}
+          >
+            <meshPhysicalMaterial
+              color="#b8ae8c"
+              metalness={0.8}
+              roughness={0.25}
+            />
+          </mesh>
+          <mesh
+            geometry={tube(
+              [
+                [0, 0.1, 0],
+                [-0.08, 0.16, 0],
+                [0, 0.24, 0],
+                [0.08, 0.16, 0],
+                [0, 0.1, 0],
+              ],
+              0.019,
+            )}
+            material={material("rust")}
+          />
+        </group>
+      )}
+      <Label
+        p={[2.4, 1.65, 8.32]}
+        size={[0.85, 1.2]}
+        lines={["THE LAST", "PICTURE", "BEIRUT · 1965"]}
+      />
+      <Label
+        p={[-6, 1.25, 16.22]}
+        size={[2.3, 0.3]}
+        lines={["BILLETS / تذاكر"]}
+      />
+      <Label
+        p={[-1, 3.7, -19.42]}
+        size={[5, 1.7]}
+        lines={["RE:CALL", "MEMORA", "THE MEMORY REMAINS"]}
+      />
+      <Exit />
+      <Water p={[-5, 0.012, 6]} scale={[1.6, 0.8, 1]} />
+      <Water p={[5, 0.012, -8]} scale={[2, 1.1, 1]} />
+      <Debris />
+      {/* Sensor colliders mirror the small interaction boxes; never used as blockers. */}
+      {targets.map((t) => (
+        <RigidBody
+          key={t.id}
+          type="fixed"
+          colliders={false}
+          userData={{ id: t.id }}
+        >
+          <CuboidCollider
+            sensor
+            position={t.p}
+            args={[t.size[0] / 2, t.size[1] / 2, t.size[2] / 2]}
+          />
+        </RigidBody>
+      ))}
+    </>
+  );
+}
