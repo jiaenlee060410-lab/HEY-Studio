@@ -4,6 +4,7 @@ import { Suspense, useEffect, Component, type ReactNode } from "react";
 import { ACESFilmicToneMapping, PCFSoftShadowMap } from "three";
 import { Cinema } from "./scene/Cinema";
 import { Player } from "./scene/Player";
+import { UpperFloors } from "./scene/UpperFloors";
 import { Interface } from "./ui/Interface";
 import { useGame } from "./game/store";
 class SceneBoundary extends Component<
@@ -50,6 +51,7 @@ export function App() {
           <Suspense fallback={null}>
             <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
               <Cinema />
+              <UpperFloors />
               <Player />
             </Physics>
           </Suspense>

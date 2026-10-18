@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540">
+<!-- Original architectural study, explicitly not an archival historical photograph. -->
+<defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#787b7a"/><stop offset="1" stop-color="#c0beb6"/></linearGradient><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feBlend in="SourceGraphic" mode="multiply"/></filter></defs>
+<path fill="url(#sky)" d="M0 0h900v540H0z"/><path fill="#535551" d="M0 310l900-25v255H0z"/>
+<g fill="#8a8b86" stroke="#424542" stroke-width="4"><path d="M15 310V120h150v195M735 307V80h140v230"/><path d="M220 324V214Q225 95 450 100Q680 100 682 230v93Z"/><path d="M270 325v-90h355v90"/></g>
+<g stroke="#494b48" stroke-width="13"><path d="M315 235v90M381 233v92M447 232v93M514 233v92M580 235v90"/></g>
+<g stroke="#494b48" stroke-width="5"><path d="M30 150h115M30 190h115M30 230h115M30 270h115M755 120h100M755 160h100M755 200h100M755 240h100"/></g>
+<path fill="#333633" d="M180 367l48-32 49 29 52-22 36 42 75-20 42 36 70-23 58 30 70-35 43 16 32 38H145z"/>
+<path stroke="#9c9b94" fill="none" stroke-width="3" d="M90 525l270-180M795 525L555 345M450 510l-10-90"/>
+<path fill="#93938a" opacity=".16" filter="url(#grain)" d="M0 0h900v540H0z"/>
+<text x="30" y="508" fill="#d1d0c7" font-family="monospace" font-size="18">ARCHITECTURAL STUDY / NOT AN ARCHIVAL PHOTOGRAPH</text>
+</svg>

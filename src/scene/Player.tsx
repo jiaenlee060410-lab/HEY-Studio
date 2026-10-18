@@ -12,6 +12,8 @@ import { PointerLockControls } from "three/examples/jsm/controls/PointerLockCont
 import * as THREE from "three";
 import { available, useGame } from "../game/store";
 import { InputManager } from "../game/input";
+import { emitGameEvent } from "../game/events";
+import { movementPhysics, nextVerticalSpeed } from "../game/physics";
 import { spawn, targets } from "./layout";
 
 export function Player() {
@@ -31,10 +33,18 @@ export function Player() {
     > | null>(null),
     crouch = useRef(false),
     scan = useRef(0),
+    physicsSteps = useRef(0),
+    verticalSpeed = useRef(-0.6),
     skipStep = useRef(1);
   useEffect(() => {
     const c = world.createCharacterController(0.015);
     c.setSlideEnabled(true);
+    c.enableAutostep(
+      movementPhysics.stepHeight,
+      movementPhysics.stepWidth,
+      true,
+    );
+    c.enableSnapToGround(movementPhysics.snapDistance);
     controller.current = c;
     return () => {
       controller.current = null;
@@ -63,7 +73,7 @@ export function Player() {
         e.preventDefault();
       const s = useGame.getState();
       if (e.code === "Enter" || e.code === "NumpadEnter") activate();
-      if (e.code === "KeyI" && s.modal !== "welcome") {
+      if (e.code === "KeyI" && s.modal !== "welcome" && s.modal !== "next") {
         s.set({
           modal: s.modal === "inventory" ? null : "inventory",
           readingOnly: false,
@@ -148,6 +158,7 @@ export function Player() {
     crouch.current = false;
     capsule.current?.setShape(new rapier.Capsule(0.6, 0.25));
     skipStep.current = 1;
+    verticalSpeed.current = -0.6;
   }, [session, camera, input, rapier]);
   useBeforePhysicsStep(() => {
     const s = useGame.getState(),
@@ -210,7 +221,11 @@ export function Player() {
     const move = f.multiplyScalar(z).addScaledVector(right, x);
     if (move.length() > 1) move.normalize();
     move.multiplyScalar((lowered ? 1.15 : 2.6) / 60);
-    move.y = -0.12;
+    verticalSpeed.current = nextVerticalSpeed(
+      verticalSpeed.current,
+      cc.computedGrounded(),
+    );
+    move.y = verticalSpeed.current / 60;
     cc.computeColliderMovement(
       col,
       move,
@@ -219,6 +234,7 @@ export function Player() {
     const d = cc.computedMovement(),
       p = b.translation();
     b.setNextKinematicTranslation({ x: p.x + d.x, y: p.y + d.y, z: p.z + d.z });
+    physicsSteps.current++;
   });
   useFrame((_, dt) => {
     input.poll(() => activate(true));
@@ -226,6 +242,18 @@ export function Player() {
       b = body.current;
     if (!b) return;
     const p = b.translation();
+    const floor = p.y >= 14.35 ? 4 : p.y >= 7.35 ? 3 : 2;
+    if (s.floor !== floor) s.set({ floor });
+    if (
+      s.exit4Open &&
+      !s.completed &&
+      p.y > 14 &&
+      p.z < -20.65 &&
+      Math.abs(p.x - 5.5) < 1.2
+    ) {
+      s.set({ completed: true, modal: "next" });
+      emitGameEvent("journey_completed", { seconds: Math.round(s.elapsed) });
+    }
     camera.position.set(
       p.x,
       THREE.MathUtils.damp(
@@ -253,7 +281,7 @@ export function Player() {
     const ray = new THREE.Ray(camera.position, direction),
       hit = new THREE.Vector3();
     let selected = null,
-      best = 1.0001;
+      best = 2.0001;
     for (const t of targets) {
       if (!available(t.id, s) || (t.crouch && !s.crouched)) continue;
       const box = new THREE.Box3().setFromCenterAndSize(
@@ -262,7 +290,7 @@ export function Player() {
       );
       if (!ray.intersectBox(box, hit)) continue;
       const distance = camera.position.distanceTo(hit);
-      if (distance > 1 || distance >= best) continue;
+      if (distance > 2 || distance >= best) continue;
       const obstacle = world.castRay(
         new rapier.Ray(camera.position, direction),
         distance - 0.035,
@@ -289,15 +317,22 @@ export function Player() {
     const debug = {
       game: useGame,
       input,
-      teleport: (x: number, z: number) => {
-        const p = { x, y: crouch.current ? 0.45 : 0.87, z };
+      teleport: (x: number, z: number, floorY = 0) => {
+        const p = { x, y: floorY + (crouch.current ? 0.45 : 0.87), z };
         body.current?.setTranslation(p, true);
         body.current?.setNextKinematicTranslation(p);
-        camera.position.set(x, crouch.current ? 0.78 : 1.67, z);
+        camera.position.set(x, floorY + (crouch.current ? 0.78 : 1.67), z);
         skipStep.current = 1;
+        verticalSpeed.current = -0.6;
       },
       aim: (x: number, y: number, z: number) => camera.lookAt(x, y, z),
       position: () => body.current?.translation(),
+      metrics: () => ({
+        steps: physicsSteps.current,
+        ...gl.info.render,
+        keys: [...input.keys],
+        locked: controls.isLocked,
+      }),
       camera: () => ({
         position: camera.position.toArray(),
         direction: camera.getWorldDirection(new THREE.Vector3()).toArray(),

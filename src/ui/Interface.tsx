@@ -1,53 +1,103 @@
 import { useEffect } from "react";
 import { copy } from "../game/content";
-import { stage, useGame } from "../game/store";
+import { inventory, stage, useGame } from "../game/store";
+import { assets, assetURL } from "../game/assets";
 
 export function MemoryMap() {
   return (
     <svg
       className="memory-map"
-      viewBox="0 0 400 210"
-      aria-label="손으로 그린 평면도와 가로선을 가진 삼각형 표식"
+      viewBox="0 0 220 420"
+      aria-label="3F 지도: 북서 캐비닛, 동쪽 모래주머니, 남서 선반"
     >
-      <path d="M35 20L365 24 360 185 32 183Z M150 22L150 140 M260 60L260 185" />
-      <path
-        className="map-dots"
-        d="M65 55L90 55 105 150 200 155 220 40 320 40 320 150"
-      />
-      <g transform="translate(320 150)">
-        <path d="M0 -23L-20 17 20 17Z M-29 0H29 M6 -30V27" />
+      <path d="M10 10H210V410H10Z M145 10h-30 M43 410h28" />
+      <path d="M10 250H125 M145 120H210" strokeWidth="4" />
+      <path d="M26 70H54V100H26Z M177 195H204 M13 340H42 M95 160H125V175H95Z" />
+      <g fill="#7e3e32" stroke="none">
+        <circle cx="30" cy="90" r="6" />
+        <circle cx="187" cy="210" r="6" />
+        <circle cx="27" cy="350" r="6" />
       </g>
-      <text x="42" y="204">
-        빛의 반대편 / THE OTHER SIDE OF LIGHT
+      <text x="42" y="85">
+        01 · 캐비닛
+      </text>
+      <text x="132" y="230">
+        02 · 모래주머니
+      </text>
+      <text x="40" y="350">
+        03 · 선반
+      </text>
+      <text x="92" y="190">
+        책상
+      </text>
+      <text x="118" y="30">
+        2F ↓
+      </text>
+      <text x="28" y="394">
+        ↑ 4F
+      </text>
+      <text x="16" y="30">
+        N ↑
       </text>
     </svg>
   );
 }
+export function Photo({ fragment = false }: { fragment?: boolean }) {
+  const s = useGame();
+  return (
+    <figure className="archive-photo">
+      <div className={"photo-pieces" + (fragment ? " fragmented" : "")}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className={
+              fragment && !s.hasPhotoFragments[i] ? "missing-piece" : ""
+            }
+            style={{
+              backgroundImage:
+                "url(" +
+                assetURL(assets.historicalPhoto || "assets/archive-study.svg") +
+                ")",
+              backgroundPosition: i * 50 + "% center",
+            }}
+          />
+        ))}
+      </div>
+      {!assets.historicalPhoto && (
+        <figcaption>{copy.photoPlaceholder}</figcaption>
+      )}
+    </figure>
+  );
+}
 export function Interface() {
   const s = useGame(),
-    count =
-      Number(s.seatClueRead) +
-      Number(s.cinemaKeyCollected) +
-      Number(s.dreamKeyCollected);
+    count = Number(s.key1Found) + Number(s.key2Found) + Number(s.key3Found),
+    items = inventory(s);
   useEffect(() => {
     if (!s.notice) return;
-    const t = setTimeout(() => useGame.getState().set({ notice: "" }), 3800);
+    const t = setTimeout(() => useGame.getState().set({ notice: "" }), 4000);
     return () => clearTimeout(t);
   }, [s.notice]);
-  const reading =
-    s.modal === "ticket" || s.modal === "note" || s.modal === "map";
-  const inventoryItems = [
-    ...(s.ticketCollected ? ["영화표 / TICKET"] : []),
-    ...(s.seatClueRead ? ["종이 조각 / LIGHT"] : []),
-    ...(s.cinemaKeyCollected ? ["평면도 / CINEMA"] : []),
-  ];
+  const reading = ["ticket", "note", "map", "fragment", "photo"].includes(
+    s.modal || "",
+  );
+  const title =
+    s.modal === "ticket"
+      ? "오후 네 시"
+      : s.modal === "note"
+        ? "다음 장으로"
+        : s.modal === "map"
+          ? "흩어진 기억의 위치"
+          : s.modal === "fragment"
+            ? "사진 조각"
+            : "하나로 이어진 기억";
   return (
     <div className="hud">
       <div className="vignette" />
       <header>
         <div className="location">
           <b>RE:CALL</b>
-          <span>{copy.floor}</span>
+          <span>{copy.floors[s.floor]}</span>
         </div>
         <div className="memory-count">
           MEMORY SYNC{" "}
@@ -98,7 +148,8 @@ export function Interface() {
             <p>{copy.controls}</p>
             <p>{copy.gamepad}</p>
             <small>
-              예상 탐색 시간 4–5분 · 새로 입장하면 기억은 초기화됩니다.
+              2F CINEMA → 3F SCAR → 4F DREAM · 새로 입장하면 처음부터
+              시작합니다.
             </small>
           </div>
         </section>
@@ -107,89 +158,97 @@ export function Interface() {
         <section className="dialog">
           <small>MEMORY / PAUSED</small>
           <h2>잠시 멈춘 기억</h2>
-          <p>화면으로 돌아가려면 Enter를 누르세요.</p>
+          <p>Enter를 누르면 읽기 화면을 닫고 탐색을 계속합니다.</p>
           <div className="start-key">{copy.resume}</div>
           <p className="muted">R · 처음부터 / I · 가방</p>
         </section>
       )}
       {reading && (
         <div className="dialog-wrap">
-          <section className="paper">
-            <small>
-              {s.modal === "ticket"
-                ? "01 / A FORGOTTEN TICKET"
-                : s.modal === "note"
-                  ? "02 / THE EMPTY SEAT"
-                  : "03 / THE OTHER SIDE"}
-            </small>
-            <h2>
-              {s.modal === "ticket"
-                ? "오후 네 시"
-                : s.modal === "note"
-                  ? "그녀의 자리"
-                  : "남겨진 표식"}
-            </h2>
+          <section
+            className={"paper " + (s.modal === "map" ? "map-paper" : "")}
+          >
+            <small>MEMORA / MEMORY ARCHIVE</small>
+            <h2>{title}</h2>
             <blockquote>
-              {copy[s.modal as "ticket" | "note" | "map"]}
+              {
+                copy[
+                  s.modal as "ticket" | "note" | "map" | "fragment" | "photo"
+                ]
+              }
             </blockquote>
             {s.modal === "map" && <MemoryMap />}
-            <div className="paper-foot">MEMORA · THE EGG</div>
+            {(s.modal === "photo" || s.modal === "fragment") && (
+              <Photo fragment={s.modal === "fragment"} />
+            )}
+            <div className="paper-foot">
+              THE EGG ·{" "}
+              {s.modal === "fragment"
+                ? s.hasPhotoFragments.filter(Boolean).length + "/3 FRAGMENTS"
+                : "RE:CALL"}
+            </div>
           </section>
           <div className="start-key">
-            {s.readingOnly ? "Enter · 가방으로" : copy.confirm}
+            {s.readingOnly
+              ? "Enter · 가방으로"
+              : s.modal === "photo"
+                ? "Enter · 사진 복원 / 서랍 열기"
+                : copy.confirm}
           </div>
         </div>
       )}
       {s.modal === "inventory" && (
-        <section className="dialog">
+        <section className="dialog inventory">
           <small>ARCHIVE / 기억 보관함</small>
           <h2>발견한 조각들</h2>
-          {inventoryItems.length ? (
-            inventoryItems.map((name, i) => (
+          {items.length ? (
+            items.map((item, i) => (
               <p
-                key={name}
+                key={item.name}
                 className={
-                  s.inventoryIndex % inventoryItems.length === i
-                    ? "selected"
-                    : "muted"
+                  s.inventoryIndex % items.length === i ? "selected" : "muted"
                 }
               >
-                {String(i + 1).padStart(2, "0")} ─ {name}
+                {String(i + 1).padStart(2, "0")} ─ {item.name}
               </p>
             ))
           ) : (
             <p>아직 발견한 기억이 없습니다.</p>
           )}
+          <div className="key-list">
+            {[1, 2, 3].map((n) => (
+              <span key={n}>
+                KEY 0{n} ·{" "}
+                {s[("hasKey" + n) as "hasKey1"]
+                  ? "보유"
+                  : s[("key" + n + "Found") as "key1Found"]
+                    ? "사용 완료"
+                    : "미발견"}
+              </span>
+            ))}
+          </div>
+          {s.ticketPlaced && <p className="muted">영화표 · 영사대에 놓음</p>}
+          {s.photoPlaced && <p className="muted">사진 · 영사대에 놓음</p>}
           <div className="start-key">← → 선택 · Enter 읽기 · I 닫기</div>
-          {s.dreamKeyCollected && <p>KEY 03 / DREAM</p>}
         </section>
       )}
-      {(s.modal === "poster" || s.modal === "projector") && (
+      {s.modal === "poster" && (
         <section className="dialog">
           <small>TRACES OF A CINEMA</small>
-          <h2>{copy.prompts[s.modal]}</h2>
-          <p>{copy[s.modal]}</p>
+          <h2>{copy.prompts.poster}</h2>
+          <p>{copy.poster}</p>
           <div className="start-key">{copy.confirm}</div>
         </section>
       )}
-      {s.modal === "complete" && (
+      {s.modal === "next" && (
         <section className="dialog complete">
           <small>MEMORY SYNC / 03 OF 03</small>
-          <h2>기억이 돌아왔습니다.</h2>
+          <h2>To be continued</h2>
           <p>
-            잊혀진 영화관의 기억이 복원되었습니다.
-            <br />
-            5F STAGE 접근 권한이 열렸습니다.
+            5F / STAGE
+            <br />세 개의 기억이 다음 무대로 이어집니다.
           </p>
-          <div className="start-key">Enter · 5F STAGE</div>
-        </section>
-      )}
-      {s.modal === "next" && (
-        <section className="dialog">
-          <small>NEXT CHAPTER</small>
-          <h2>5F / STAGE</h2>
-          <p>무대는 다음 장에서 이어집니다.</p>
-          <div className="start-key">Enter · 영화관 다시 탐색</div>
+          <div className="start-key">Enter · 2F에서 다시 시작</div>
         </section>
       )}
     </div>

@@ -144,7 +144,7 @@ export function material(kind: Surface, repeatX = 1, repeatY = 1) {
     map: texture(base, true),
     normalMap: texture(normal),
     roughnessMap: texture(rough),
-    roughness: kind === "velvet" ? 0.87 : 0.98,
+    roughness: kind === "velvet" ? 0.8 : 0.98,
     metalness: kind === "rust" ? 0.45 : 0,
     normalScale: new T.Vector2(0.7, 0.7),
     side: T.DoubleSide,
@@ -159,7 +159,7 @@ export function material(kind: Surface, repeatX = 1, repeatY = 1) {
 }
 export function featuredVelvet() {
   const mat = material("velvet").clone();
-  mat.roughness = 0.74;
+  mat.roughness = 0.2;
   mat.anisotropy = 0.85;
   mat.anisotropyRotation = 0.4;
   mat.sheenColor = new T.Color("#fff1da");

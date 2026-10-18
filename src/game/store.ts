@@ -1,47 +1,81 @@
 import { create } from "zustand";
 import { emitGameEvent } from "./events";
+import { copy } from "./content";
 export type TargetId =
   | "ticket"
   | "seat"
-  | "box"
-  | "symbol"
-  | "dream"
-  | "exit"
-  | "poster"
-  | "projector";
+  | "exit2"
+  | "entry3"
+  | "desk"
+  | "fragment1"
+  | "fragment2"
+  | "fragment3"
+  | "key2"
+  | "exit3"
+  | "entry4"
+  | "projector"
+  | "key3"
+  | "exit4"
+  | "poster";
 export type Modal =
   | "welcome"
   | "pause"
   | "ticket"
   | "note"
   | "map"
+  | "fragment"
+  | "photo"
   | "inventory"
-  | "complete"
   | "next"
   | "poster"
-  | "projector"
   | null;
 export type Progress = {
-  ticketCollected: boolean;
-  seatClueRead: boolean;
-  boxDiscovered: boolean;
-  boxUnlocked: boolean;
-  cinemaKeyCollected: boolean;
-  dreamRevealed: boolean;
-  dreamKeyCollected: boolean;
-  exitDoorUnlocked: boolean;
-  floor2Completed: boolean;
+  hasTicket: boolean;
+  hasTicket2: boolean;
+  hasMap: boolean;
+  hasPhotoFragments: [boolean, boolean, boolean];
+  hasRestoredPhoto: boolean;
+  hasKey1: boolean;
+  hasKey2: boolean;
+  hasKey3: boolean;
+  key1Found: boolean;
+  key2Found: boolean;
+  key3Found: boolean;
+  exit2Open: boolean;
+  entry3Open: boolean;
+  exit3Open: boolean;
+  entry4Open: boolean;
+  exit4Open: boolean;
+  ticketPlaced: boolean;
+  photoPlaced: boolean;
+  projectorStarted: boolean;
+  projectionFinished: boolean;
+  drawerOpen: boolean;
+  completed: boolean;
 };
 export const freshProgress = (): Progress => ({
-  ticketCollected: false,
-  seatClueRead: false,
-  boxDiscovered: false,
-  boxUnlocked: false,
-  cinemaKeyCollected: false,
-  dreamRevealed: false,
-  dreamKeyCollected: false,
-  exitDoorUnlocked: false,
-  floor2Completed: false,
+  hasTicket: false,
+  hasTicket2: false,
+  hasMap: false,
+  hasPhotoFragments: [false, false, false],
+  hasRestoredPhoto: false,
+  hasKey1: false,
+  hasKey2: false,
+  hasKey3: false,
+  key1Found: false,
+  key2Found: false,
+  key3Found: false,
+  exit2Open: false,
+  entry3Open: false,
+  exit3Open: false,
+  entry4Open: false,
+  exit4Open: false,
+  ticketPlaced: false,
+  photoPlaced: false,
+  projectorStarted: false,
+  projectionFinished: false,
+  drawerOpen: false,
+  completed: false,
 });
 type State = Progress & {
   modal: Modal;
@@ -49,47 +83,94 @@ type State = Progress & {
   locked: boolean;
   crouched: boolean;
   ready: boolean;
+  floor: 2 | 3 | 4;
   session: number;
   elapsed: number;
   notice: string;
   readingOnly: boolean;
   inventoryIndex: number;
+  activeFragment: number;
+  projectionTime: number;
   set: (p: Partial<State>) => void;
   resetGame: () => void;
   interact: (id: TargetId) => void;
   confirm: () => void;
+  tickProjection: (dt: number) => void;
 };
 export function stage(s: Progress) {
-  return !s.ticketCollected
-    ? 0
-    : !s.seatClueRead
-      ? 1
-      : !s.cinemaKeyCollected
-        ? 2
-        : !s.dreamRevealed
-          ? 3
-          : !s.dreamKeyCollected
-            ? 4
-            : 5;
+  if (!s.hasTicket && !s.ticketPlaced) return 0;
+  if (!s.key1Found) return 1;
+  if (!s.exit2Open) return 2;
+  if (!s.hasMap) return 3;
+  if (!s.hasPhotoFragments.every(Boolean)) return 4;
+  if (!s.drawerOpen) return 5;
+  if (!s.key2Found) return 6;
+  if (!s.exit3Open) return 7;
+  if (!s.ticketPlaced) return 8;
+  if (!s.photoPlaced) return 9;
+  if (!s.projectionFinished) return 10;
+  if (!s.key3Found) return 11;
+  return 12;
 }
 export function available(id: TargetId, s: Progress) {
   switch (id) {
     case "ticket":
-      return !s.ticketCollected;
+      return !s.hasTicket && !s.ticketPlaced;
     case "seat":
-      return s.ticketCollected && !s.seatClueRead;
-    case "box":
-      return s.seatClueRead && !s.cinemaKeyCollected;
-    case "symbol":
-      return s.cinemaKeyCollected && !s.dreamRevealed;
-    case "dream":
-      return s.dreamRevealed && !s.dreamKeyCollected;
-    case "exit":
-      return !s.floor2Completed;
+      return s.hasTicket && !s.key1Found;
+    case "desk":
+      return !s.drawerOpen;
+    case "fragment1":
+    case "fragment2":
+    case "fragment3":
+      return s.hasMap && !s.hasPhotoFragments[Number(id.at(-1)) - 1];
+    case "key2":
+      return s.drawerOpen && !s.key2Found;
+    case "key3":
+      return s.projectionFinished && !s.key3Found;
+    case "projector":
+      return !s.projectorStarted;
+    case "exit2":
+      return !s.exit2Open;
+    case "entry3":
+      return !s.entry3Open;
+    case "exit3":
+      return !s.exit3Open;
+    case "entry4":
+      return !s.entry4Open;
+    case "exit4":
+      return !s.exit4Open;
     default:
       return true;
   }
 }
+export function inventory(s: Progress): { name: string; modal: Modal }[] {
+  return [
+    ...(s.hasTicket
+      ? [{ name: copy.items.ticket, modal: "ticket" as const }]
+      : []),
+    ...(s.hasTicket2
+      ? [{ name: copy.items.note, modal: "note" as const }]
+      : []),
+    ...(s.hasMap ? [{ name: copy.items.map, modal: "map" as const }] : []),
+    ...(s.hasPhotoFragments.some(Boolean)
+      ? [
+          {
+            name:
+              copy.items.fragments +
+              " " +
+              s.hasPhotoFragments.filter(Boolean).length +
+              "/3",
+            modal: "fragment" as const,
+          },
+        ]
+      : []),
+    ...(s.hasRestoredPhoto
+      ? [{ name: copy.items.photo, modal: "photo" as const }]
+      : []),
+  ];
+}
+// Single browser GameManager. No persistent save hydration: every entry is fresh.
 export const useGame = create<State>((set, get) => ({
   ...freshProgress(),
   modal: "welcome",
@@ -97,11 +178,14 @@ export const useGame = create<State>((set, get) => ({
   locked: false,
   crouched: false,
   ready: false,
+  floor: 2,
   session: 0,
   elapsed: 0,
   notice: "",
   readingOnly: false,
   inventoryIndex: 0,
+  activeFragment: 0,
+  projectionTime: 0,
   set: (p) => set(p),
   resetGame: () => {
     set({
@@ -110,49 +194,91 @@ export const useGame = create<State>((set, get) => ({
       target: null,
       locked: false,
       crouched: false,
+      floor: 2,
       session: get().session + 1,
       elapsed: 0,
       notice: "",
       readingOnly: false,
       inventoryIndex: 0,
+      activeFragment: 0,
+      projectionTime: 0,
     });
     emitGameEvent("floor2_enter", { reset: true });
   },
   interact: (id) => {
     const s = get();
     if (s.modal || !available(id, s)) return;
-    if ((id === "ticket" || id === "box") && !s.crouched) return;
+    if ((id === "ticket" || id === "seat" || id === "fragment1") && !s.crouched)
+      return;
     if (id === "ticket") set({ modal: "ticket", readingOnly: false });
     if (id === "seat") set({ modal: "note", readingOnly: false });
-    if (id === "box")
+    if (id === "entry3") set({ entry3Open: true });
+    if (id === "entry4") set({ entry4Open: true });
+    if (id === "exit2" || id === "exit3" || id === "exit4") {
+      const n = Number(id.at(-1)) - 1;
+      const key = ("hasKey" + n) as "hasKey1" | "hasKey2" | "hasKey3";
+      const door = (id + "Open") as "exit2Open" | "exit3Open" | "exit4Open";
+      if (!s[key]) {
+        set({ notice: copy.locked });
+        return;
+      }
+      set({ [key]: false, [door]: true, notice: copy.unlocked });
+      emitGameEvent("door_unlocked", { floor: n + 1, key: n });
+      if (id === "exit2") emitGameEvent("floor2_completed");
+    }
+    if (id === "desk") {
+      if (!s.hasMap) set({ modal: "map", readingOnly: false });
+      else if (s.hasPhotoFragments.every(Boolean))
+        set({ modal: "photo", readingOnly: false });
+      else set({ notice: copy.findFragments });
+    }
+    if (id.startsWith("fragment")) {
+      const i = Number(id.at(-1)) - 1;
+      const pieces = [...s.hasPhotoFragments] as [boolean, boolean, boolean];
+      pieces[i] = true;
       set({
-        modal: "map",
-        boxDiscovered: true,
-        boxUnlocked: true,
+        hasPhotoFragments: pieces,
+        activeFragment: i,
+        modal: "fragment",
         readingOnly: false,
       });
-    if (id === "symbol") {
-      set({
-        dreamRevealed: true,
-        notice: "표식 아래에서 기억의 조각이 드러났습니다.",
-      });
-      emitGameEvent("cinema_memory_restored");
+      emitGameEvent("photo_fragment_collected", { fragment: i + 1 });
     }
-    if (id === "dream") {
-      set({ dreamKeyCollected: true, notice: "Key 03 · DREAM 획득" });
+    if (id === "key2") {
+      set({ hasKey2: true, key2Found: true, notice: "Key 02 · SCAR" });
+      emitGameEvent("scar_key_collected");
+    }
+    if (id === "key3") {
+      set({ hasKey3: true, key3Found: true, notice: "Key 03 · DREAM" });
       emitGameEvent("dream_key_collected");
     }
-    if (id === "exit") {
-      if (s.dreamKeyCollected) {
+    if (id === "projector") {
+      if (!s.ticketPlaced) {
+        if (!s.hasTicket) {
+          set({ notice: copy.needTicket });
+          return;
+        }
         set({
-          exitDoorUnlocked: true,
-          floor2Completed: true,
-          modal: "complete",
+          hasTicket: false,
+          ticketPlaced: true,
+          notice: copy.ticketPlaced,
         });
-        emitGameEvent("floor2_completed", { seconds: Math.round(s.elapsed) });
-      } else set({ notice: "세 개의 기억이 모여야 무대가 열립니다." });
+      } else if (!s.photoPlaced) {
+        if (!s.hasRestoredPhoto) {
+          set({ notice: copy.needPhoto });
+          return;
+        }
+        set({
+          hasRestoredPhoto: false,
+          photoPlaced: true,
+          projectorStarted: true,
+          projectionTime: 0,
+          notice: copy.projection,
+        });
+        emitGameEvent("projection_started");
+      }
     }
-    if (id === "poster" || id === "projector") set({ modal: id });
+    if (id === "poster") set({ modal: "poster" });
   },
   confirm: () => {
     const s = get();
@@ -162,42 +288,57 @@ export const useGame = create<State>((set, get) => ({
     }
     switch (s.modal) {
       case "ticket":
-        set({ ticketCollected: true, modal: null });
+        set({ hasTicket: true, modal: null });
         emitGameEvent("ticket_collected");
         break;
       case "note":
-        set({ seatClueRead: true, modal: null, notice: "Key 01 · LIGHT 획득" });
-        break;
-      case "map":
         set({
-          cinemaKeyCollected: true,
+          hasTicket2: true,
+          hasKey1: true,
+          key1Found: true,
           modal: null,
-          notice: "Key 02 · CINEMA 획득",
+          notice: "Key 01 · CINEMA",
         });
-        emitGameEvent("box_unlocked");
         emitGameEvent("cinema_key_collected");
         break;
+      case "map":
+        set({ hasMap: true, modal: null });
+        break;
+      case "photo":
+        if (s.hasPhotoFragments.every(Boolean)) {
+          set({
+            hasRestoredPhoto: true,
+            drawerOpen: true,
+            modal: null,
+            notice: copy.drawer,
+          });
+          emitGameEvent("photo_restored");
+        }
+        break;
       case "inventory": {
-        const items: Modal[] = [
-          ...(s.ticketCollected ? ["ticket" as const] : []),
-          ...(s.seatClueRead ? ["note" as const] : []),
-          ...(s.cinemaKeyCollected ? ["map" as const] : []),
-        ];
+        const items = inventory(s);
         if (items.length)
           set({
-            modal: items[s.inventoryIndex % items.length],
+            modal: items[s.inventoryIndex % items.length].modal,
             readingOnly: true,
           });
         break;
       }
-      case "complete":
-        set({ modal: "next" });
-        break;
       case "next":
         get().resetGame();
         break;
       default:
         set({ modal: null });
+    }
+  },
+  tickProjection: (dt) => {
+    const s = get();
+    if (!s.projectorStarted || s.projectionFinished || s.modal) return;
+    const time = Math.min(8, s.projectionTime + Math.max(0, dt));
+    s.projectionTime = time;
+    if (time >= 8) {
+      set({ projectionTime: time, projectionFinished: true });
+      emitGameEvent("projection_finished");
     }
   },
 }));

@@ -29,13 +29,17 @@ export function chipped(size: V3, seed = 1, cushion = false) {
   return g;
 }
 export function tube(points: V3[], radius = 0.025) {
-  return new T.TubeGeometry(
+  const key = "tube:" + points + ":" + radius;
+  if (cache.has(key)) return cache.get(key)!;
+  const g = new T.TubeGeometry(
     new T.CatmullRomCurve3(points.map((p) => new T.Vector3(...p))),
     32,
     radius,
     8,
     false,
   );
+  cache.set(key, g);
+  return g;
 }
 export function fragment(seed: number) {
   const rng = random(seed),

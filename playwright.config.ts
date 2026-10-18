@@ -7,7 +7,7 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:4173",
     headless: true,
-    viewport: { width: 960, height: 600 },
+    viewport: { width: 760, height: 480 },
     launchOptions: {
       executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
       args: [

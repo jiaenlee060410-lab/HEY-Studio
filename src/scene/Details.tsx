@@ -1,10 +1,54 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Decal, MeshReflectorMaterial } from "@react-three/drei";
+import { Decal, MeshReflectorMaterial, useTexture } from "@react-three/drei";
+import { CuboidCollider, RigidBody } from "@react-three/rapier";
 import * as T from "three";
 import { chipped, cup, fragment, paper, tube } from "./geometry";
 import { material, random } from "./materials";
 import type { V3 } from "./layout";
+import { assets, assetURL } from "../game/assets";
+
+export function ArchivePhoto({ p, part }: { p: V3; part?: number }) {
+  const source = useTexture(
+    assetURL(assets.historicalPhoto || "assets/archive-study.svg"),
+  );
+  const map = useMemo(() => {
+    const t = source.clone();
+    t.colorSpace = T.SRGBColorSpace;
+    t.needsUpdate = true;
+    return t;
+  }, [source]);
+  const geometry = useMemo(() => {
+    const g = paper(),
+      uv = g.attributes.uv;
+    if (part !== undefined)
+      for (let i = 0; i < uv.count; i++) uv.setX(i, (uv.getX(i) + part) / 3);
+    return g;
+  }, [part]);
+  useEffect(
+    () => () => {
+      map.dispose();
+      geometry.dispose();
+    },
+    [map, geometry],
+  );
+  return (
+    <mesh
+      position={p}
+      rotation={[-Math.PI / 2, 0, 0.15]}
+      scale={[part === undefined ? 1 : 0.4, 1, 1]}
+      geometry={geometry}
+      receiveShadow
+    >
+      <meshStandardMaterial
+        map={map}
+        normalMap={material("paper").normalMap}
+        roughness={0.95}
+        side={T.DoubleSide}
+      />
+    </mesh>
+  );
+}
 
 export function drawSymbol(
   c: CanvasRenderingContext2D,
@@ -95,15 +139,35 @@ export function Label({
   );
 }
 export function Graffiti({ revealed }: { revealed: boolean }) {
-  const wall = useMemo(()=>chipped([.83,1,.04]).clone(),[]);
-  const original = useMemo(()=>new Float32Array(wall.attributes.position.array),[wall]);
+  const wall = useMemo(() => chipped([0.83, 1, 0.04]).clone(), []);
+  const original = useMemo(
+    () => new Float32Array(wall.attributes.position.array),
+    [wall],
+  );
   const elapsed = useRef(0);
-  useFrame((_,dt)=>{
-    if(!revealed){elapsed.current=0;return}
-    if(elapsed.current>2.5)return;
-    elapsed.current+=dt;const p=wall.attributes.position,t=elapsed.current;
-    for(let i=0;i<p.count;i++){const x=original[i*3],y=original[i*3+1];p.setZ(i,original[i*3+2]+Math.exp(-(x*x+y*y)*15)*Math.sin(t*9)*Math.exp(-t*2)*.035)}
-    p.needsUpdate=true;wall.computeVertexNormals();
+  useFrame((_, dt) => {
+    if (!revealed) {
+      elapsed.current = 0;
+      return;
+    }
+    if (elapsed.current > 2.5) return;
+    elapsed.current += dt;
+    const p = wall.attributes.position,
+      t = elapsed.current;
+    for (let i = 0; i < p.count; i++) {
+      const x = original[i * 3],
+        y = original[i * 3 + 1];
+      p.setZ(
+        i,
+        original[i * 3 + 2] +
+          Math.exp(-(x * x + y * y) * 15) *
+            Math.sin(t * 9) *
+            Math.exp(-t * 2) *
+            0.035,
+      );
+    }
+    p.needsUpdate = true;
+    wall.computeVertexNormals();
   });
   const texture = useMemo(() => lettering([], true, true), []),
     other = useMemo(
@@ -156,7 +220,7 @@ export function Graffiti({ revealed }: { revealed: boolean }) {
 }
 export function Rebar({ p }: { p: V3 }) {
   return (
-    <group position={p}>
+    <RigidBody type="fixed" colliders="trimesh" position={p}>
       {[0, 0.24, 0.48].map((x, i) => (
         <mesh
           key={x}
@@ -173,7 +237,7 @@ export function Rebar({ p }: { p: V3 }) {
           castShadow
         />
       ))}
-    </group>
+    </RigidBody>
   );
 }
 export function Debris() {
@@ -183,7 +247,40 @@ export function Debris() {
   const rubble = useMemo(() => fragment(15), []),
     cupGeometry = useMemo(cup, []),
     cornGeometry = useMemo(() => fragment(117), []);
-  // Instancing keeps hundreds of irregular fragments affordable. Micro debris is ground dressing.
+  // Shared transforms drive both instancing and small blocking volumes.
+  const bounds = useMemo(() => {
+    const boxes: { p: V3; size: V3 }[] = [];
+    [rubble, cupGeometry, cornGeometry].forEach((geometry, type) => {
+      geometry.computeBoundingBox();
+      const rng = random(84 + type),
+        dummy = new T.Object3D();
+      for (let i = 0; i < [250, 40, 300][type]; i++) {
+        const x = (rng() - 0.5) * 19,
+          z = (rng() - 0.5) * 38;
+        dummy.position.set(x, type === 0 ? 0.005 : 0.025, z);
+        dummy.rotation.set(
+          type === 1 ? Math.PI / 2 : 0,
+          rng() * 6.28,
+          rng() * 0.2,
+        );
+        const scale =
+          type === 0
+            ? 0.07 + rng() * 0.22
+            : type === 1
+              ? 0.8
+              : 0.02 + rng() * 0.02;
+        dummy.scale.set(scale, type === 2 ? scale * 0.15 : scale, scale);
+        dummy.updateMatrix();
+        const box = geometry.boundingBox!.clone().applyMatrix4(dummy.matrix),
+          p = new T.Vector3(),
+          size = new T.Vector3();
+        box.getCenter(p);
+        box.getSize(size);
+        boxes.push({ p: p.toArray() as V3, size: size.toArray() as V3 });
+      }
+    });
+    return boxes;
+  }, [rubble, cupGeometry, cornGeometry]);
   const setup = (mesh: T.InstancedMesh | null, type: number) => {
     if (!mesh) return;
     const rng = random(84 + type),
@@ -211,6 +308,15 @@ export function Debris() {
   };
   return (
     <>
+      <RigidBody type="fixed" colliders={false}>
+        {bounds.map((b, i) => (
+          <CuboidCollider
+            key={i}
+            position={b.p}
+            args={[b.size[0] / 2, b.size[1] / 2, b.size[2] / 2]}
+          />
+        ))}
+      </RigidBody>
       <instancedMesh
         ref={(m) => {
           ref.current = m;

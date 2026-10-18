@@ -2,8 +2,10 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as T from "three";
 import { random } from "./materials";
+import { useGame } from "../game/store";
 
 export function Atmosphere() {
+  const bounce = useRef<T.HemisphereLight>(null);
   const light = useRef<T.DirectionalLight>(null),
     target = useMemo(() => {
       const t = new T.Object3D();
@@ -48,14 +50,31 @@ export function Atmosphere() {
     if (dustRef.current)
       dustRef.current.rotation.y =
         Math.sin(beam.uniforms.time.value * 0.03) * 0.003;
-    if (light.current) light.current.target = target;
+    if (light.current) {
+      light.current.target = target;
+      light.current.intensity = T.MathUtils.damp(
+        light.current.intensity,
+        useGame.getState().floor === 2 ? 3.7 : 0,
+        2,
+        dt,
+      );
+    }
+    if (bounce.current) {
+      const floor = useGame.getState().floor;
+      bounce.current.intensity = T.MathUtils.damp(
+        bounce.current.intensity,
+        floor === 2 ? 0.8 : floor === 3 ? 0.45 : 0.3,
+        2,
+        dt,
+      );
+    }
   });
   return (
     <>
       <color attach="background" args={["#242725"]} />
       <fogExp2 attach="fog" args={["#595750", 0.018]} />
       {/* Low reflected skylight keeps shadow detail; the west breach is the sole strong source. */}
-      <hemisphereLight args={["#acb8c5", "#686960", 0.8]} />
+      <hemisphereLight ref={bounce} args={["#acb8c5", "#686960", 0.8]} />
       <primitive object={target} />
       <directionalLight
         ref={light}
