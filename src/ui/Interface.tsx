@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { copy } from "../game/content";
 import { inventory, stage, useGame } from "../game/store";
 import { assets, assetURL } from "../game/assets";
+import { PasswordLock } from "./PasswordLock";
 
 export function MemoryMap() {
   return (
@@ -78,19 +79,29 @@ export function Interface() {
     const t = setTimeout(() => useGame.getState().set({ notice: "" }), 4000);
     return () => clearTimeout(t);
   }, [s.notice]);
-  const reading = ["ticket", "note", "map", "fragment", "photo"].includes(
-    s.modal || "",
-  );
+  const reading = [
+    "ticket",
+    "note",
+    "numberNote",
+    "filmNote",
+    "map",
+    "fragment",
+    "photo",
+  ].includes(s.modal || "");
   const title =
-    s.modal === "ticket"
-      ? "오후 네 시"
-      : s.modal === "note"
-        ? "다음 장으로"
-        : s.modal === "map"
-          ? "흩어진 기억의 위치"
-          : s.modal === "fragment"
-            ? "사진 조각"
-            : "하나로 이어진 기억";
+    s.modal === "numberNote"
+      ? copy.items.numberNote
+      : s.modal === "filmNote"
+        ? copy.items.filmNote
+        : s.modal === "ticket"
+          ? "오후 네 시"
+          : s.modal === "note"
+            ? "다음 장으로"
+            : s.modal === "map"
+              ? "흩어진 기억의 위치"
+              : s.modal === "fragment"
+                ? "사진 조각"
+                : "하나로 이어진 기억";
   return (
     <div className="hud">
       <div className="vignette" />
@@ -133,6 +144,9 @@ export function Interface() {
           {s.notice}
         </div>
       )}
+      {(s.modal === "password" || s.modal === "lockSuccess") && (
+        <PasswordLock />
+      )}
       {s.modal === "welcome" && (
         <section className="welcome">
           <div className="eyebrow">BEIRUT, LEBANON · 16:00</div>
@@ -173,10 +187,18 @@ export function Interface() {
             <blockquote>
               {
                 copy[
-                  s.modal as "ticket" | "note" | "map" | "fragment" | "photo"
+                  s.modal as
+                    | "ticket"
+                    | "note"
+                    | "numberNote"
+                    | "filmNote"
+                    | "map"
+                    | "fragment"
+                    | "photo"
                 ]
               }
             </blockquote>
+            {s.modal === "filmNote" && <p>{copy.filmHint}</p>}
             {s.modal === "map" && <MemoryMap />}
             {(s.modal === "photo" || s.modal === "fragment") && (
               <Photo fragment={s.modal === "fragment"} />

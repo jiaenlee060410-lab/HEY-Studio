@@ -9,6 +9,8 @@ const state = (page: Page) =>
       interact: undefined,
       confirm: undefined,
       tickProjection: undefined,
+      passwordKey: undefined,
+      cancelPassword: undefined,
     };
   });
 const position = (page: Page) =>
@@ -37,6 +39,40 @@ async function start(page: Page) {
   );
   await confirm(page);
   await expect.poll(async () => (await state(page)).modal).toBe(null);
+}
+async function password(page: Page, digits: string) {
+  for (const digit of digits) await page.keyboard.press("Digit" + digit);
+  await confirm(page);
+  await expect.poll(async () => (await state(page)).modal).toBe("lockSuccess");
+  await confirm(page);
+}
+async function filmLock(page: Page, arrows = false) {
+  await interact(page, [2.4, -0.65, 14], [1.05, 15.46, -0.65], "filmLock");
+  expect((await state(page)).modal).toBe("filmNote");
+  await expect(page.locator("blockquote")).toContainText("흩어진 세 개의 기억");
+  await confirm(page);
+  expect((await state(page)).modal).toBe("password");
+  if (arrows) {
+    for (const code of [
+      "ArrowUp",
+      "ArrowUp",
+      "ArrowUp",
+      "Enter",
+      "ArrowLeft",
+      "ArrowLeft",
+      "Enter",
+      "ArrowDown",
+      "Enter",
+      "ArrowUp",
+      "Enter",
+    ])
+      await page.keyboard.press(code);
+    expect((await state(page)).password).toBe("3141");
+    await confirm(page);
+    expect((await state(page)).modal).toBe("lockSuccess");
+    await confirm(page);
+  } else await password(page, "3141");
+  await advancePhysics(page, 120);
 }
 async function aim(
   page: Page,
@@ -155,6 +191,15 @@ test("complete 2F → physical stairs → 3F photo → physical stairs → 4F or
   await expect.poll(async () => (await state(page)).target).toBe(null);
   await interact(page, [-4, 1.15, 0], [-4, 0.69, 2.05], "seat", true);
   await confirm(page);
+  expect((await state(page)).hasNumberNote).toBe(true);
+  expect((await state(page)).hasKey1).toBe(false);
+  await aim(page, [-7, 6.4, 0], [0, 1.5, -2]);
+  await page.screenshot({ path: "test-results/cinema-v3.png" });
+  await interact(page, [5.3, -11.2, 0], [5.3, 0.85, -12.32], "safe");
+  await password(page, "197511");
+  await advancePhysics(page, 120);
+  await interact(page, [5.1, -11.4, 0], [5.1, 0.31, -12.9], "safeContents");
+  await confirm(page);
   expect((await state(page)).hasKey1).toBe(true);
   await interact(page, [5.5, -18.7, 0], [5.5, 1.5, -20], "exit2");
   expect((await state(page)).hasKey1).toBe(false);
@@ -221,8 +266,12 @@ test("complete 2F → physical stairs → 3F photo → physical stairs → 4F or
     .toBe(true);
   await page.waitForTimeout(1500);
   await page.screenshot({ path: "test-results/dream-projection.png" });
+  await aim(page, [-5, 2, 14], [-12, 17.6, 0]);
+  await page.screenshot({ path: "test-results/dream-aurora.png" });
   const image = await page.request.get("/assets/memora-poster.png");
   expect(image.status()).toBe(200);
+  expect((await state(page)).filmUnlocked).toBe(false);
+  await filmLock(page);
   await interact(page, [2.4, -0.65, 14], [1.05, 15.3, -0.65], "key3");
   await interact(page, [5.5, -18.7, 14], [5.5, 15.5, -20], "exit4");
   expect((await state(page)).hasKey3).toBe(false);
@@ -258,6 +307,8 @@ test("4F focus: original poster, real-time projection, shallow tray and final th
     (window as any).__recall.game.getState().set({
       hasTicket: true,
       hasTicket2: true,
+      hasNumberNote: true,
+      safeUnlocked: true,
       hasRestoredPhoto: true,
       key1Found: true,
       key2Found: true,
@@ -278,6 +329,8 @@ test("4F focus: original poster, real-time projection, shallow tray and final th
     })
     .toBe(true);
   await advancePhysics(page, 120);
+  expect((await state(page)).filmUnlocked).toBe(false);
+  await filmLock(page, true);
   await interact(page, [2.4, -0.65, 14], [1.05, 15.3, -0.65], "key3");
   expect((await state(page)).hasKey3).toBe(true);
   await page.screenshot({ path: "test-results/dream-key.png" });
@@ -294,6 +347,60 @@ test("4F focus: original poster, real-time projection, shallow tray and final th
   await confirm(page);
   await expect.poll(async () => (await position(page)).y).toBeLessThan(1);
   expect((await state(page)).projectionFinished).toBe(false);
+  expect((await state(page)).filmUnlocked).toBe(false);
+});
+test("2F safe: numeric keyboard, wrong code, mouse disabled, pause movement, cancel, loot and reset", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error") errors.push(m.text());
+  });
+  await start(page);
+  await interact(page, [5.3, -11.2, 0], [5.3, 0.85, -12.32], "safe");
+  expect((await state(page)).modal).toBe("password");
+  expect(await page.evaluate(() => document.pointerLockElement === null)).toBe(
+    true,
+  );
+  const p = await position(page);
+  await page.keyboard.down("KeyW");
+  await page.waitForTimeout(300);
+  await page.keyboard.up("KeyW");
+  expect(await position(page)).toEqual(p);
+  const key = page.getByRole("gridcell").filter({ hasText: /^1$/ });
+  const rect = await key.boundingBox();
+  await page.mouse.click(rect!.x + 5, rect!.y + 5);
+  expect((await state(page)).password).toBe("");
+  for (const digit of "111111") await page.keyboard.press("Digit" + digit);
+  await confirm(page);
+  expect((await state(page)).safeUnlocked).toBe(false);
+  expect((await state(page)).password).toBe("");
+  await expect(page.locator(".lock-error")).toContainText("일치하지");
+  await page.screenshot({ path: "test-results/safe-wrong-password.png" });
+  await page.keyboard.press("Escape");
+  await expect.poll(async () => (await state(page)).modal).toBe(null);
+  await expect
+    .poll(async () => page.evaluate(() => document.pointerLockElement !== null))
+    .toBe(true);
+  await interact(page, [5.3, -11.2, 0], [5.3, 0.85, -12.32], "safe");
+  await page.keyboard.press("Digit8");
+  await page.keyboard.press("Backspace");
+  await password(page, "197511");
+  expect((await state(page)).hasKey1).toBe(false);
+  await advancePhysics(page, 120);
+  await interact(page, [5.1, -11.4, 0], [5.1, 0.31, -12.9], "safeContents");
+  expect((await state(page)).hasTicket2).toBe(true);
+  await confirm(page);
+  await page.screenshot({ path: "test-results/safe-open.png" });
+  await page.reload();
+  await page.waitForFunction(
+    () => !!(window as any).__recall?.game.getState().ready,
+  );
+  expect((await state(page)).hasKey1).toBe(false);
+  expect((await state(page)).safeUnlocked).toBe(false);
+  expect((await state(page)).password).toBe("");
+  expect(errors).toEqual([]);
 });
 test("capsule blocks seats, partition, counter, pillar, boundaries; inventory/blur/crouch recover", async ({
   page,
@@ -359,4 +466,33 @@ test("capsule blocks seats, partition, counter, pillar, boundaries; inventory/bl
   await confirm(page);
   await aim(page, [-7, 6.4, 0], [0, 1.5, -2]);
   await page.screenshot({ path: "test-results/cinema-overview.png" });
+});
+test("V3 visual smoke: carpet render, compact film keypad fits and keyboard resumes", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error") errors.push(m.text());
+  });
+  await start(page);
+  await aim(page, [-7, 6.4, 0], [0, 1.5, -2]);
+  await page.screenshot({ path: "test-results/v3-final-carpet.png" });
+  await page.evaluate(() =>
+    (window as any).__recall.game
+      .getState()
+      .set({ modal: "password", lockId: "film", hasFilmNote: true }),
+  );
+  await expect(page.locator(".lock-clue")).toContainText("흩어진 세 개의 기억");
+  const controls = await page.locator(".lock-controls").boundingBox();
+  const keypad = await page.locator(".keypad").boundingBox();
+  expect(controls!.y + controls!.height).toBeLessThan(480);
+  expect(keypad!.y).toBeGreaterThan(0);
+  await page.screenshot({ path: "test-results/v3-compact-film-lock.png" });
+  await page.keyboard.press("Escape");
+  await expect
+    .poll(async () => page.evaluate(() => document.pointerLockElement !== null))
+    .toBe(true);
+  expect((await state(page)).modal).toBe(null);
+  expect(errors).toEqual([]);
 });

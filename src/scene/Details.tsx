@@ -128,6 +128,7 @@ export function Label({
     () => lettering(lines, symbol),
     [lines.join("|"), symbol],
   );
+  useEffect(() => () => map.dispose(), [map]);
   return (
     <mesh
       position={p}

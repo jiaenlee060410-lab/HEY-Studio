@@ -12,7 +12,9 @@ export type GameEvent =
   | "scar_key_collected"
   | "projection_started"
   | "projection_finished"
-  | "journey_completed";
+  | "journey_completed"
+  | "password_rejected"
+  | "password_unlocked";
 export function emitGameEvent(
   eventName: GameEvent,
   data: Record<string, unknown> = {},

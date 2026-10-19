@@ -64,6 +64,17 @@ export function Player() {
     controls.connect(gl.domElement);
     const down = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      const current = useGame.getState();
+      if (current.modal === "password") {
+        e.preventDefault();
+        input.clear();
+        if (e.code === "Escape") {
+          current.cancelPassword();
+          controls.lock();
+        } else if (e.code === "Enter" || e.code === "NumpadEnter") activate();
+        else current.passwordKey(e.code);
+        return;
+      }
       input.keys.add(e.code);
       if (
         ["Enter", "NumpadEnter", "Space", "ArrowLeft", "ArrowRight"].includes(
@@ -114,9 +125,6 @@ export function Player() {
       if (!s.modal) s.set({ modal: "pause" });
       controls.unlock();
     };
-    const click = () => {
-      if (!useGame.getState().modal) controls.lock();
-    };
     const error = () =>
       useGame
         .getState()
@@ -125,7 +133,6 @@ export function Player() {
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
     document.addEventListener("pointerlockerror", error);
-    gl.domElement.addEventListener("click", click);
     controls.addEventListener("lock", lock);
     controls.addEventListener("unlock", unlock);
     useGame.getState().set({ ready: true });
@@ -134,7 +141,6 @@ export function Player() {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
       document.removeEventListener("pointerlockerror", error);
-      gl.domElement.removeEventListener("click", click);
       controls.removeEventListener("lock", lock);
       controls.removeEventListener("unlock", unlock);
       controls.dispose();
@@ -237,7 +243,10 @@ export function Player() {
     physicsSteps.current++;
   });
   useFrame((_, dt) => {
-    input.poll(() => activate(true));
+    input.poll(
+      () => activate(true),
+      (code) => useGame.getState().passwordKey(code),
+    );
     const s = useGame.getState(),
       b = body.current;
     if (!b) return;

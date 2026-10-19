@@ -5,16 +5,11 @@ import { solids, chairs, type V3 } from "./layout";
 import { chipped, tube, brokenOpening, fragment, ruinedWall } from "./geometry";
 import { material, featuredVelvet } from "./materials";
 import { Atmosphere } from "./Atmosphere";
-import { Door, KeyMesh } from "./Architecture";
-import {
-  Label,
-  Graffiti,
-  Ticket,
-  Water,
-  Debris,
-  Rebar,
-  Projector,
-} from "./Details";
+import { Door } from "./Architecture";
+import { CinemaSafe } from "./CinemaSafe";
+import { CinemaClutter } from "./ClutterSpawner";
+import { Carpet } from "./Carpet";
+import { Label, Graffiti, Ticket, Water, Rebar, Projector } from "./Details";
 
 function Chair({
   p,
@@ -98,7 +93,7 @@ function Chair({
           <mesh
             position={[x, 0.73, -0.02]}
             geometry={chipped([0.12, 0.1, 0.62], 3, true)}
-            material={material("wood")}
+            material={featured ? cloth : material("wood")}
             castShadow
           />
         </group>
@@ -145,6 +140,7 @@ export function Cinema() {
         <RigidBody type="fixed" colliders={false}>
           <CuboidCollider args={[10, 0.2, 20]} position={[0, -0.2, 0]} />
         </RigidBody>
+        <Carpet />
         {solids.map((b) => (
           <group key={b.id} position={b.p}>
             <mesh
@@ -259,8 +255,8 @@ export function Cinema() {
           material={material("concrete")}
           receiveShadow
         />
-        {!s.key1Found && <Ticket p={[-4, 0.69, 2.05]} />}
-        {!s.key1Found && <KeyMesh p={[-3.85, 0.65, 2.02]} />}
+        {!s.hasNumberNote && <Ticket p={[-4, 0.69, 2.05]} />}
+        <CinemaSafe key={s.session} />
         <Projector />
         <RigidBody type="fixed" colliders={false}>
           <CuboidCollider position={[7, 0.9, -12]} args={[0.43, 0.9, 0.55]} />
@@ -284,7 +280,7 @@ export function Cinema() {
         <Door p={[5.5, 0, -20]} flag="exit2Open" label="3F / SCAR" swing={1} />
         <Water p={[-5, 0.012, 6]} scale={[1.6, 0.8, 1]} />
         <Water p={[5, 0.012, -8]} scale={[2, 1.1, 1]} />
-        <Debris />
+        <CinemaClutter />
       </group>
     </>
   );

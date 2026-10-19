@@ -1,6 +1,14 @@
 import * as T from "three";
 export type Surface =
-  "concrete" | "floor" | "velvet" | "rust" | "paper" | "wood";
+  | "concrete"
+  | "floor"
+  | "velvet"
+  | "rust"
+  | "paper"
+  | "wood"
+  | "carpet"
+  | "canvas"
+  | "brass";
 const cache = new Map<string, T.MeshPhysicalMaterial>();
 function hash(x: number, y: number) {
   let v = Math.imul(x, 374761393) + Math.imul(y, 668265263);
@@ -79,23 +87,50 @@ export function material(kind: Surface, repeatX = 1, repeatY = 1) {
           Math.sin(x * 1.8) * 0.008 + Math.sin(y * 2.1) * 0.008 + grain * 0.008;
         stain = Math.max(0, cloud) * 1.3;
       }
+      if (kind === "carpet" || kind === "canvas") {
+        const weave = Math.sin(x * 2.6) * Math.sin(y * 2.8);
+        const worn = Math.max(0, noise(x / 60 + 5, y / 80) - 0.48) * 2.5;
+        const damp = Math.max(0, noise(x / 110 + 11, y / 100 + 8) - 0.52) * 1.7;
+        h = (grain * 0.055 + weave * 0.032) * (1 - Math.min(0.85, worn));
+        stain = damp * 0.7 + worn * 0.15;
+      }
       if (kind === "wood") {
         h = Math.sin(x * 0.19 + Math.sin(y * 0.012) * 2) * 0.12 + grain * 0.05;
         stain = h + 0.12;
       }
-      const rusty = noise(x / 36 + 10, y / 36) > 0.58;
+      // Multi-scale oxidation has soft, pitted edges, not flat camouflage islands.
+      const oxidation = Math.max(
+        0,
+        Math.min(
+          1,
+          (noise(x / 72 + 10, y / 72) - 0.32) * 2.5 +
+            (noise(x / 9, y / 9) - 0.5) * 0.45,
+        ),
+      );
+      if (kind === "rust") {
+        h += oxidation * (grain * 0.06 + noise(x / 5, y / 5) * 0.025);
+        stain += Math.max(0, noise(x / 13, y / 180) - 0.58) * 0.3;
+      }
       const palette =
-        kind === "velvet"
-          ? [88, 39, 35]
-          : kind === "rust"
-            ? rusty
-              ? [99, 57, 30]
-              : [91, 94, 87]
-            : kind === "paper"
-              ? [188, 173, 140]
-              : kind === "wood"
-                ? [83, 63, 44]
-                : [137, 132, 119];
+        kind === "carpet"
+          ? [116, 32, 29]
+          : kind === "canvas"
+            ? [116, 108, 79]
+            : kind === "brass"
+              ? [151, 110, 55]
+              : kind === "velvet"
+                ? [88, 39, 35]
+                : kind === "rust"
+                  ? [
+                      60 + oxidation * 26,
+                      65 - oxidation * 15,
+                      65 - oxidation * 30,
+                    ]
+                  : kind === "paper"
+                    ? [188, 173, 140]
+                    : kind === "wood"
+                      ? [83, 63, 44]
+                      : [137, 132, 119];
       const factor = 0.86 + cloud + grain * 0.08 - stain;
       for (let c = 0; c < 3; c++)
         base[i * 4 + c] = Math.max(9, palette[c] * factor);
@@ -144,16 +179,55 @@ export function material(kind: Surface, repeatX = 1, repeatY = 1) {
     map: texture(base, true),
     normalMap: texture(normal),
     roughnessMap: texture(rough),
-    roughness: kind === "velvet" ? 0.8 : 0.98,
-    metalness: kind === "rust" ? 0.45 : 0,
+    roughness: kind === "velvet" ? 0.8 : kind === "brass" ? 0.64 : 0.98,
+    metalness: kind === "rust" ? 0.45 : kind === "brass" ? 0.75 : 0,
     normalScale: new T.Vector2(0.7, 0.7),
     side: T.DoubleSide,
   });
-  if (kind === "velvet") {
+  if (kind === "velvet" || kind === "carpet") {
     mat.sheen = 1;
     mat.sheenColor = new T.Color("#b19b8a");
     mat.sheenRoughness = 0.72;
   }
+  cache.set(key, mat);
+  return mat;
+}
+export function carpetMaterial() {
+  const key = "worn-carpet";
+  if (cache.has(key)) return cache.get(key)!;
+  const mat = material("carpet", 7, 14).clone();
+  // Old flocking stays crimson under the warm sun; a strong beige sheen made
+  // the same red base texture read as orange plastic at grazing camera angles.
+  mat.sheen = 0.2;
+  mat.sheenColor.set("#6f1a27");
+  mat.sheenRoughness = 0.95;
+  // Shared fabric textures carry pile + stains. World-space wear avoids an obvious
+  // repeating clean rectangle: heavy traffic exposes the concrete beneath it.
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = "varying vec3 carpetWorld;\n" + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <worldpos_vertex>",
+      "#include <worldpos_vertex>\ncarpetWorld=(modelMatrix*vec4(transformed,1.)).xyz;",
+    );
+    shader.fragmentShader =
+      "varying vec3 carpetWorld;\n" + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      float scars=sin(carpetWorld.x*3.1+sin(carpetWorld.z*1.9))*sin(carpetWorld.z*2.3+cos(carpetWorld.x*2.7));
+      float aisle=exp(-pow((carpetWorld.x+5.7)*.7,2.));
+      float damage=smoothstep(.65,.96,scars)*aisle;
+      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.12,.10,.075),damage*.65);
+      vec2 wetA=(carpetWorld.xz-vec2(-5.,6.))/vec2(1.8,.95);
+      vec2 wetB=(carpetWorld.xz-vec2(5.,-8.))/vec2(2.2,1.25);
+      float wet=min(length(wetA),length(wetB));
+      diffuseColor.rgb*=mix(.48,1.,smoothstep(.9,1.3,wet));
+      if(wet<1.+sin(carpetWorld.x*8.)*.05) discard;
+      if(damage>.82) discard;
+    `,
+    );
+  };
+  mat.customProgramCacheKey = () => "worn-carpet-v3";
   cache.set(key, mat);
   return mat;
 }

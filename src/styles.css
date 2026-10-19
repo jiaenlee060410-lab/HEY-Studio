@@ -284,11 +284,73 @@ h1 span {
   margin: 28px 0;
 }
 .paper blockquote {
+  white-space: pre-line;
   font-size: 16px;
   line-height: 2;
   margin: 0;
   border-left: 1px solid #7d8064;
   padding-left: 18px;
+}
+.password-lock {
+  padding: 22px 28px;
+  max-height: 94dvh;
+  overflow-y: auto;
+  width: min(530px, 94vw);
+}
+.password-lock h2 {
+  font-size: 23px;
+  margin: 10px 0;
+}
+.password-output {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+.password-output span {
+  font: 26px monospace;
+  border-bottom: 1px solid #b3a982;
+  min-width: 25px;
+  text-align: center;
+}
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  max-width: 255px;
+  margin: 10px auto;
+}
+.keypad > div {
+  border: 1px solid #697363;
+  text-align: center;
+  padding: 7px;
+  font: 17px monospace;
+}
+.keypad > .selected {
+  background: #b3a982;
+  color: #1b2520;
+  border: 1px solid #ece2c8;
+  padding: 7px;
+}
+.lock-error {
+  min-height: 20px;
+  font-size: 11px;
+  text-align: center;
+  color: #d9c2a3;
+}
+.lock-controls {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #c6c4b5;
+}
+.password-lock .lock-clue {
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 8px 0;
+}
+.lock-clue em {
+  color: #b2a9e6;
+  font-style: normal;
 }
 .paper-foot {
   margin-top: 30px;
@@ -382,6 +444,31 @@ h1 span {
   padding-top: 12px;
 }
 @media (max-height: 650px) {
+  .password-lock {
+    padding: 14px 24px;
+  }
+  .password-lock h2 {
+    font-size: 18px;
+    margin: 6px 0;
+  }
+  .password-lock .password-output {
+    margin: 6px 0;
+  }
+  .password-lock .password-output span {
+    font-size: 24px;
+  }
+  .password-lock .keypad {
+    gap: 4px;
+    margin: 6px auto;
+  }
+  .password-lock .keypad > div {
+    padding: 3px;
+    font-size: 15px;
+  }
+  .password-lock .lock-clue {
+    font-size: 10px;
+    line-height: 1.5;
+  }
   .welcome {
     padding: 10vh 8vw;
   }

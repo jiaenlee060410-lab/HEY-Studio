@@ -6,6 +6,7 @@ export class InputManager {
   padCrouch = false;
   padActive = false;
   private previous = false;
+  private previousDirection = "";
   clear = () => {
     this.keys.clear();
     this.move = [0, 0];
@@ -15,7 +16,7 @@ export class InputManager {
   get crouched() {
     return this.keys.has("ShiftLeft") || this.padCrouch;
   }
-  poll(confirm: () => void) {
+  poll(confirm: () => void, navigate: (code: string) => void = () => {}) {
     const pad = Array.from(navigator.getGamepads?.() ?? []).find(Boolean);
     if (!pad) {
       this.padActive = false;
@@ -23,6 +24,7 @@ export class InputManager {
       this.look = [0, 0];
       this.padCrouch = false;
       this.previous = false;
+      this.previousDirection = "";
       return;
     }
     const dead = (v: number) => (Math.abs(v) > 0.16 ? v : 0);
@@ -30,6 +32,12 @@ export class InputManager {
     this.look = [dead(pad.axes[2] ?? 0), dead(pad.axes[3] ?? 0)];
     this.padCrouch = pad.buttons[4]?.pressed ?? false;
     const pressed = !!(pad.buttons[0]?.pressed || pad.buttons[7]?.pressed);
+    const direction =
+      ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].find(
+        (_, i) => pad.buttons[12 + i]?.pressed,
+      ) || "";
+    if (direction && direction !== this.previousDirection) navigate(direction);
+    this.previousDirection = direction;
     if (pressed || this.move.some(Boolean) || this.look.some(Boolean))
       this.padActive = true;
     if (pressed && !this.previous) confirm();

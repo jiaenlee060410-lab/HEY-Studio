@@ -110,7 +110,7 @@ export function DreamProjector() {
     // Use active wall-clock time, not frame count, including on slower GPUs.
     if (!document.hidden) useGame.getState().tickProjection(elapsed);
     if (
-      useGame.getState().projectionFinished &&
+      useGame.getState().filmUnlocked &&
       !fired.current &&
       lid.current?.isDynamic()
     ) {
@@ -167,7 +167,7 @@ export function DreamProjector() {
       />
       <RigidBody
         ref={lid}
-        type={s.projectionFinished ? "dynamic" : "fixed"}
+        type={s.filmUnlocked ? "dynamic" : "fixed"}
         colliders={false}
         position={[1.05, 15.405, -0.65]}
         mass={0.12}
@@ -181,10 +181,14 @@ export function DreamProjector() {
           castShadow
         />
         <CuboidCollider args={[0.35, 0.0225, 0.325]} mass={0.12} />
+        <Label
+          p={[0, 0.035, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          size={[0.45, 0.36]}
+          lines={["세 → 하나", "네 → 하나", "MEMORY SYNC"]}
+        />
       </RigidBody>
-      {s.projectionFinished && !s.key3Found && (
-        <KeyMesh p={[1.05, 15.3, -0.65]} />
-      )}
+      {s.filmUnlocked && !s.key3Found && <KeyMesh p={[1.05, 15.3, -0.65]} />}
       {s.ticketPlaced && <Ticket p={[-0.6, 15.19, 0.35]} />}
       {s.photoPlaced && <ArchivePhoto p={[0.3, 15.19, 0.35]} />}
       <mesh

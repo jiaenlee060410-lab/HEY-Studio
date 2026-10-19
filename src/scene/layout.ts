@@ -53,6 +53,8 @@ export const chairs = [-1, 2, 5].flatMap((z, r) =>
 export const targets: { id: TargetId; p: V3; size: V3; crouch?: boolean }[] = [
   { id: "ticket", p: [-6, 0.08, 14.5], size: [0.32, 0.09, 0.23], crouch: true },
   { id: "seat", p: [-4, 0.69, 2.05], size: [0.35, 0.16, 0.16], crouch: true },
+  { id: "safe", p: [5.3, 0.85, -12.32], size: [0.36, 0.4, 0.12] },
+  { id: "safeContents", p: [5.1, 0.31, -12.9], size: [0.65, 0.16, 0.38] },
   { id: "exit2", p: [5.5, 1.5, -20], size: [2.3, 3, 0.5] },
   { id: "entry3", p: [1.5, 8.5, -20], size: [2.3, 3, 0.5] },
   { id: "desk", p: [0, 8.19, -4], size: [1.8, 0.16, 0.85] },
@@ -68,6 +70,7 @@ export const targets: { id: TargetId; p: V3; size: V3; crouch?: boolean }[] = [
   { id: "exit3", p: [-5.5, 8.5, 20], size: [2.3, 3, 0.5] },
   { id: "entry4", p: [-1.5, 15.5, 20], size: [2.3, 3, 0.5] },
   { id: "projector", p: [0, 15.22, 0], size: [1.5, 0.25, 0.8] },
+  { id: "filmLock", p: [1.05, 15.46, -0.65], size: [0.55, 0.1, 0.5] },
   { id: "key3", p: [1.05, 15.3, -0.65], size: [0.3, 0.15, 0.3] },
   { id: "exit4", p: [5.5, 15.5, -20], size: [2.3, 3, 0.5] },
   { id: "poster", p: [2.4, 1.65, 8.32], size: [0.85, 1.2, 0.04] },

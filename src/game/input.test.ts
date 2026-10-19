@@ -38,3 +38,21 @@ it("clears held keys when focus or mouse lock is lost", () => {
   expect(input.keys.size).toBe(0);
   expect(input.crouched).toBe(false);
 });
+it("gamepad D-pad navigates lock cells on edges rather than every rendered frame", () => {
+  const pad = {
+    axes: [],
+    buttons: Array.from({ length: 16 }, () => ({ pressed: false })),
+  };
+  vi.stubGlobal("navigator", { getGamepads: () => [pad] });
+  const input = new InputManager(),
+    navigate = vi.fn();
+  pad.buttons[12].pressed = true;
+  input.poll(() => {}, navigate);
+  input.poll(() => {}, navigate);
+  expect(navigate).toHaveBeenCalledExactlyOnceWith("ArrowUp");
+  pad.buttons[12].pressed = false;
+  input.poll(() => {}, navigate);
+  pad.buttons[15].pressed = true;
+  input.poll(() => {}, navigate);
+  expect(navigate).toHaveBeenLastCalledWith("ArrowRight");
+});

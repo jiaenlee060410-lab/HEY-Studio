@@ -5,6 +5,15 @@ import { random } from "./materials";
 import { useGame } from "../game/store";
 
 export function Atmosphere() {
+  const fog = useRef<T.FogExp2>(null);
+  const fogColors = useMemo(
+    () => [
+      new T.Color("#595750"),
+      new T.Color("#373c41"),
+      new T.Color("#24253b"),
+    ],
+    [],
+  );
   const bounce = useRef<T.HemisphereLight>(null);
   const light = useRef<T.DirectionalLight>(null),
     target = useMemo(() => {
@@ -46,6 +55,11 @@ export function Atmosphere() {
   }, []);
   const dustRef = useRef<T.Points>(null);
   useFrame((_, dt) => {
+    if (fog.current)
+      fog.current.color.lerp(
+        fogColors[useGame.getState().floor - 2],
+        1 - Math.exp(-dt * 2),
+      );
     beam.uniforms.time.value += dt;
     if (dustRef.current)
       dustRef.current.rotation.y =
@@ -63,7 +77,7 @@ export function Atmosphere() {
       const floor = useGame.getState().floor;
       bounce.current.intensity = T.MathUtils.damp(
         bounce.current.intensity,
-        floor === 2 ? 0.8 : floor === 3 ? 0.45 : 0.3,
+        floor === 2 ? 1.0 : floor === 3 ? 0.45 : 0.3,
         2,
         dt,
       );
@@ -72,9 +86,9 @@ export function Atmosphere() {
   return (
     <>
       <color attach="background" args={["#242725"]} />
-      <fogExp2 attach="fog" args={["#595750", 0.018]} />
+      <fogExp2 ref={fog} attach="fog" args={["#595750", 0.018]} />
       {/* Low reflected skylight keeps shadow detail; the west breach is the sole strong source. */}
-      <hemisphereLight ref={bounce} args={["#acb8c5", "#686960", 0.8]} />
+      <hemisphereLight ref={bounce} args={["#acb8c5", "#686960", 1.0]} />
       <primitive object={target} />
       <directionalLight
         ref={light}

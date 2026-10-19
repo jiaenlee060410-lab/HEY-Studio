@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./events", () => ({ emitGameEvent: vi.fn() }));
 import { useGame, stage, available, freshProgress, inventory } from "./store";
+import { emitGameEvent } from "./events";
 const s = () => useGame.getState();
 beforeEach(() => {
   s().resetGame();
@@ -11,6 +12,17 @@ function cinema() {
   s().interact("ticket");
   s().confirm();
   s().interact("seat");
+  s().confirm();
+  unlock("safe", "197511");
+  s().interact("safeContents");
+  s().confirm();
+}
+function unlock(id: "safe" | "filmLock", password: string) {
+  s().interact(id);
+  if (id === "filmLock") s().confirm();
+  for (const digit of password) s().passwordKey("Digit" + digit);
+  s().confirm();
+  expect(s().modal).toBe("lockSuccess");
   s().confirm();
 }
 function scar() {
@@ -49,6 +61,12 @@ describe("three-floor GameManager", () => {
     expect(s().key1Found).toBe(false);
     s().set({ crouched: true });
     s().interact("seat");
+    s().confirm();
+    expect(s().hasKey1).toBe(false);
+    expect(s().hasNumberNote).toBe(true);
+    unlock("safe", "197511");
+    expect(s().hasKey1).toBe(false);
+    s().interact("safeContents");
     s().confirm();
     expect(s().hasKey1).toBe(true);
     s().interact("exit3");
@@ -113,10 +131,13 @@ describe("three-floor GameManager", () => {
     expect(s().projectionFinished).toBe(true);
     expect(s().hasKey3).toBe(false);
     s().interact("key3");
+    expect(s().hasKey3).toBe(false);
+    unlock("filmLock", "3141");
+    s().interact("key3");
     s().interact("exit4");
     expect(s().exit4Open).toBe(true);
     expect(s().hasKey3).toBe(false);
-    expect(stage(s())).toBe(12);
+    expect(stage(s())).toBe(15);
     expect(s().completed).toBe(false);
   });
   it("reset clears every progression field including nested fragments, doors and physical animation flags", () => {
@@ -137,11 +158,97 @@ describe("three-floor GameManager", () => {
     s().interact("exit2");
     s().set({ modal: "inventory", inventoryIndex: 1 });
     s().confirm();
-    expect(s().modal).toBe("note");
+    expect(s().modal).toBe("numberNote");
     s().confirm();
     expect(s().modal).toBe("inventory");
     expect(s().hasKey1).toBe(false);
     expect(available("ticket", s())).toBe(false);
-    expect(inventory(s())).toHaveLength(2);
+    expect(inventory(s())).toHaveLength(3);
+  });
+  it("rejects wrong and incomplete passwords, limits digits, and resets both locks", () => {
+    s().interact("safe");
+    s().passwordKey("Digit1");
+    s().confirm();
+    expect(s().passwordError).toBe(true);
+    expect(s().password).toBe("");
+    expect(s().safeUnlocked).toBe(false);
+    for (const n of "999999999") s().passwordKey("Digit" + n);
+    expect(s().password).toBe("999999");
+    s().confirm();
+    expect(s().safeUnlocked).toBe(false);
+    for (const n of "197511") s().passwordKey("Numpad" + n);
+    s().confirm();
+    expect(s().safeUnlocked).toBe(true);
+    s().confirm();
+    expect(s().key1Found).toBe(false);
+    s().interact("filmLock");
+    expect(s().modal).toBe(null);
+    s().set({ projectionFinished: true });
+    unlock("filmLock", "3141");
+    expect(s().filmUnlocked).toBe(true);
+    expect(s().key3Found).toBe(false);
+    s().resetGame();
+    expect(
+      s().safeUnlocked ||
+        s().filmUnlocked ||
+        s().hasNumberNote ||
+        s().hasFilmNote,
+    ).toBe(false);
+    expect(s().lockId).toBe(null);
+  });
+  it("enters 3141 using only arrows and Enter, then requires the submit cell", () => {
+    s().set({ projectionFinished: true });
+    s().interact("filmLock");
+    s().confirm();
+    // Grid starts at submit (11). Select 3 -> 1 -> 4 -> 1.
+    for (const key of ["ArrowUp", "ArrowUp", "ArrowUp"]) s().passwordKey(key);
+    s().confirm();
+    expect(s().password).toBe("3");
+    s().passwordKey("ArrowLeft");
+    s().passwordKey("ArrowLeft");
+    s().confirm();
+    s().passwordKey("ArrowDown");
+    s().confirm();
+    s().passwordKey("ArrowUp");
+    s().confirm();
+    expect(s().password).toBe("3141");
+    expect(s().keypadIndex).toBe(11);
+    expect(s().filmUnlocked).toBe(false);
+    s().confirm();
+    expect(s().filmUnlocked).toBe(true);
+  });
+  it("cancel closes lock without opening it; inventory reading cannot unlock film", () => {
+    s().interact("safe");
+    s().passwordKey("Digit1");
+    s().cancelPassword();
+    expect(s().modal).toBe(null);
+    expect(s().password).toBe("");
+    expect(s().safeUnlocked).toBe(false);
+    s().set({ hasFilmNote: true, readingOnly: true, modal: "filmNote" });
+    s().confirm();
+    expect(s().modal).toBe("inventory");
+    expect(s().filmUnlocked).toBe(false);
+  });
+  it("wrong film password cannot release key3 and a correct lock emits OnUnlock only once", () => {
+    s().set({ projectionFinished: true });
+    s().interact("filmLock");
+    s().confirm();
+    for (const digit of "0000") s().passwordKey("Digit" + digit);
+    s().confirm();
+    expect(s().passwordError).toBe(true);
+    expect(s().password).toBe("");
+    expect(s().filmUnlocked).toBe(false);
+    expect(available("key3", s())).toBe(false);
+    vi.mocked(emitGameEvent).mockClear();
+    for (const digit of "3141") s().passwordKey("Digit" + digit);
+    s().confirm();
+    s().confirm();
+    s().interact("filmLock");
+    s().confirm();
+    expect(emitGameEvent).toHaveBeenCalledExactlyOnceWith("password_unlocked", {
+      lockId: "film",
+      floor: 4,
+    });
+    expect(s().hasKey3).toBe(false);
   });
 });

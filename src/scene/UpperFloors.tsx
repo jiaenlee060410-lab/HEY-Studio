@@ -13,6 +13,9 @@ import { material } from "./materials";
 import { Door, KeyMesh, SolidMesh, Stairwell } from "./Architecture";
 import { Label, Rebar, Ticket, ArchivePhoto } from "./Details";
 import { DreamProjector } from "./ProjectorSystem";
+import { ScarClutter } from "./ClutterSpawner";
+import { ScarDetails } from "./ScarDetails";
+import { DreamEffects } from "./DreamEffects";
 
 function EndWall({ z, y, gap }: { z: number; y: number; gap: number }) {
   const left = gap - 1.2,
@@ -32,15 +35,29 @@ function Shell({
   y,
   north,
   south,
+  dream = false,
 }: {
   y: number;
   north: number;
   south: number;
+  dream?: boolean;
 }) {
   return (
     <>
       <SolidMesh p={[0, y - 0.18, 0]} size={[20, 0.36, 40]} kind="floor" />
-      <SolidMesh p={[-10, y + 3, 0]} size={[0.45, 6, 40]} />
+      {dream ? (
+        <>
+          <SolidMesh p={[-10, y + 0.7, 0]} size={[0.45, 1.4, 40]} />
+          <SolidMesh p={[-10, y + 5.7, 0]} size={[0.45, 0.6, 40]} />
+          {[-13.5, 13.5].map((z) => (
+            <SolidMesh key={z} p={[-10, y + 3.4, z]} size={[0.45, 4, 13]} />
+          ))}
+          <Rebar p={[-9.9, y + 1.4, -6.8]} />
+          <Rebar p={[-9.9, y + 1.4, 6.4]} />
+        </>
+      ) : (
+        <SolidMesh p={[-10, y + 3, 0]} size={[0.45, 6, 40]} />
+      )}
       <SolidMesh p={[10, y + 3, 0]} size={[0.45, 6, 40]} />
       <EndWall z={-20} y={y} gap={north} />
       <EndWall z={20} y={y} gap={south} />
@@ -179,7 +196,7 @@ function FallenCabinet() {
 }
 function Sandbags() {
   const cloth = useMemo(() => {
-    const m = material("velvet").clone();
+    const m = material("canvas").clone();
     m.color.set("#a8a68c");
     m.sheen = 0.15;
     return m;
@@ -233,6 +250,8 @@ export function Scar() {
       <ArchiveDesk />
       <FallenCabinet />
       <Sandbags />
+      <ScarClutter />
+      <ScarDetails />
       <EmergencyLight p={[0, 11.8, -4]} />
       <SolidMesh p={[-8.3, 8.07, 14]} size={[2, 0.16, 0.8]} kind="wood" />
       <SolidMesh p={[-8.3, 7.53, 14]} size={[1.4, 1.05, 0.55]} kind="wood" />
@@ -259,7 +278,8 @@ export function Scar() {
 export function Dream() {
   return (
     <>
-      <Shell y={14} north={5.5} south={-1.5} />
+      <Shell y={14} north={5.5} south={-1.5} dream />
+      <DreamEffects />
       <Door p={[-1.5, 14, 20]} flag="entry4Open" label="04 / DREAM" swing={1} />
       <Door p={[5.5, 14, -20]} flag="exit4Open" label="05 / STAGE" swing={1} />
       <DreamProjector />

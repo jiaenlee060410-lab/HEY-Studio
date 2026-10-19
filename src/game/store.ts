@@ -1,9 +1,20 @@
 import { create } from "zustand";
 import { emitGameEvent } from "./events";
 import { copy } from "./content";
+import {
+  emptyLock,
+  editPassword,
+  keypad,
+  passwordLocks,
+  type LockInput,
+} from "./passwords";
+import { lockSound } from "./audio";
 export type TargetId =
   | "ticket"
   | "seat"
+  | "safe"
+  | "safeContents"
+  | "filmLock"
   | "exit2"
   | "entry3"
   | "desk"
@@ -22,6 +33,10 @@ export type Modal =
   | "pause"
   | "ticket"
   | "note"
+  | "numberNote"
+  | "filmNote"
+  | "password"
+  | "lockSuccess"
   | "map"
   | "fragment"
   | "photo"
@@ -30,6 +45,10 @@ export type Modal =
   | "poster"
   | null;
 export type Progress = {
+  hasNumberNote: boolean;
+  hasFilmNote: boolean;
+  safeUnlocked: boolean;
+  filmUnlocked: boolean;
   hasTicket: boolean;
   hasTicket2: boolean;
   hasMap: boolean;
@@ -54,6 +73,10 @@ export type Progress = {
   completed: boolean;
 };
 export const freshProgress = (): Progress => ({
+  hasNumberNote: false,
+  hasFilmNote: false,
+  safeUnlocked: false,
+  filmUnlocked: false,
   hasTicket: false,
   hasTicket2: false,
   hasMap: false,
@@ -77,47 +100,59 @@ export const freshProgress = (): Progress => ({
   drawerOpen: false,
   completed: false,
 });
-type State = Progress & {
-  modal: Modal;
-  target: TargetId | null;
-  locked: boolean;
-  crouched: boolean;
-  ready: boolean;
-  floor: 2 | 3 | 4;
-  session: number;
-  elapsed: number;
-  notice: string;
-  readingOnly: boolean;
-  inventoryIndex: number;
-  activeFragment: number;
-  projectionTime: number;
-  set: (p: Partial<State>) => void;
-  resetGame: () => void;
-  interact: (id: TargetId) => void;
-  confirm: () => void;
-  tickProjection: (dt: number) => void;
-};
+type State = Progress &
+  LockInput & {
+    modal: Modal;
+    target: TargetId | null;
+    locked: boolean;
+    crouched: boolean;
+    ready: boolean;
+    floor: 2 | 3 | 4;
+    session: number;
+    elapsed: number;
+    notice: string;
+    readingOnly: boolean;
+    inventoryIndex: number;
+    activeFragment: number;
+    projectionTime: number;
+    set: (p: Partial<State>) => void;
+    resetGame: () => void;
+    interact: (id: TargetId) => void;
+    confirm: () => void;
+    tickProjection: (dt: number) => void;
+    passwordKey: (code: string) => void;
+    cancelPassword: () => void;
+  };
 export function stage(s: Progress) {
   if (!s.hasTicket && !s.ticketPlaced) return 0;
-  if (!s.key1Found) return 1;
-  if (!s.exit2Open) return 2;
-  if (!s.hasMap) return 3;
-  if (!s.hasPhotoFragments.every(Boolean)) return 4;
-  if (!s.drawerOpen) return 5;
-  if (!s.key2Found) return 6;
-  if (!s.exit3Open) return 7;
-  if (!s.ticketPlaced) return 8;
-  if (!s.photoPlaced) return 9;
-  if (!s.projectionFinished) return 10;
-  if (!s.key3Found) return 11;
-  return 12;
+  if (!s.hasNumberNote && !s.safeUnlocked) return 1;
+  if (!s.safeUnlocked) return 2;
+  if (!s.key1Found) return 3;
+  if (!s.exit2Open) return 4;
+  if (!s.hasMap) return 5;
+  if (!s.hasPhotoFragments.every(Boolean)) return 6;
+  if (!s.drawerOpen) return 7;
+  if (!s.key2Found) return 8;
+  if (!s.exit3Open) return 9;
+  if (!s.ticketPlaced) return 10;
+  if (!s.photoPlaced) return 11;
+  if (!s.projectionFinished) return 12;
+  if (!s.filmUnlocked) return 13;
+  if (!s.key3Found) return 14;
+  return 15;
 }
 export function available(id: TargetId, s: Progress) {
   switch (id) {
     case "ticket":
       return !s.hasTicket && !s.ticketPlaced;
     case "seat":
-      return s.hasTicket && !s.key1Found;
+      return s.hasTicket && !s.hasNumberNote;
+    case "safe":
+      return !s.safeUnlocked;
+    case "safeContents":
+      return s.safeUnlocked && !s.key1Found;
+    case "filmLock":
+      return s.projectionFinished && !s.filmUnlocked;
     case "desk":
       return !s.drawerOpen;
     case "fragment1":
@@ -127,7 +162,7 @@ export function available(id: TargetId, s: Progress) {
     case "key2":
       return s.drawerOpen && !s.key2Found;
     case "key3":
-      return s.projectionFinished && !s.key3Found;
+      return s.filmUnlocked && !s.key3Found;
     case "projector":
       return !s.projectorStarted;
     case "exit2":
@@ -149,6 +184,9 @@ export function inventory(s: Progress): { name: string; modal: Modal }[] {
     ...(s.hasTicket
       ? [{ name: copy.items.ticket, modal: "ticket" as const }]
       : []),
+    ...(s.hasNumberNote
+      ? [{ name: copy.items.numberNote, modal: "numberNote" as const }]
+      : []),
     ...(s.hasTicket2
       ? [{ name: copy.items.note, modal: "note" as const }]
       : []),
@@ -168,11 +206,15 @@ export function inventory(s: Progress): { name: string; modal: Modal }[] {
     ...(s.hasRestoredPhoto
       ? [{ name: copy.items.photo, modal: "photo" as const }]
       : []),
+    ...(s.hasFilmNote
+      ? [{ name: copy.items.filmNote, modal: "filmNote" as const }]
+      : []),
   ];
 }
 // Single browser GameManager. No persistent save hydration: every entry is fresh.
 export const useGame = create<State>((set, get) => ({
   ...freshProgress(),
+  ...emptyLock(),
   modal: "welcome",
   target: null,
   locked: false,
@@ -190,6 +232,7 @@ export const useGame = create<State>((set, get) => ({
   resetGame: () => {
     set({
       ...freshProgress(),
+      ...emptyLock(),
       modal: "welcome",
       target: null,
       locked: false,
@@ -211,7 +254,27 @@ export const useGame = create<State>((set, get) => ({
     if ((id === "ticket" || id === "seat" || id === "fragment1") && !s.crouched)
       return;
     if (id === "ticket") set({ modal: "ticket", readingOnly: false });
-    if (id === "seat") set({ modal: "note", readingOnly: false });
+    if (id === "seat") set({ modal: "numberNote", readingOnly: false });
+    if (id === "safe")
+      set({ ...emptyLock(), lockId: "safe", modal: "password" });
+    if (id === "filmLock")
+      set({
+        ...emptyLock(),
+        lockId: "film",
+        modal: "filmNote",
+        readingOnly: false,
+      });
+    if (id === "safeContents") {
+      set({
+        hasKey1: true,
+        key1Found: true,
+        hasTicket2: true,
+        modal: "note",
+        readingOnly: false,
+        notice: "Key 01 · CINEMA",
+      });
+      emitGameEvent("cinema_key_collected");
+    }
     if (id === "entry3") set({ entry3Open: true });
     if (id === "entry4") set({ entry4Open: true });
     if (id === "exit2" || id === "exit3" || id === "exit4") {
@@ -287,19 +350,62 @@ export const useGame = create<State>((set, get) => ({
       return;
     }
     switch (s.modal) {
+      case "numberNote":
+        set({ hasNumberNote: true, modal: null });
+        break;
+      case "filmNote":
+        set({
+          hasFilmNote: true,
+          modal: "password",
+          ...emptyLock(),
+          lockId: "film",
+        });
+        break;
+      case "password": {
+        if (!s.lockId) return;
+        const definition = passwordLocks[s.lockId];
+        if (s.keypadMode && s.keypadIndex !== 11) {
+          const key = keypad[s.keypadIndex];
+          const password =
+            key === "⌫"
+              ? s.password.slice(0, -1)
+              : (s.password + key).slice(0, definition.code.length);
+          set({
+            password,
+            passwordError: false,
+            keypadIndex:
+              password.length === definition.code.length ? 11 : s.keypadIndex,
+          });
+          return;
+        }
+        const correct = s.password === definition.code;
+        lockSound(correct);
+        if (!correct) {
+          set({ password: "", passwordError: true, keypadIndex: 11 });
+          emitGameEvent("password_rejected", { lockId: s.lockId });
+          return;
+        }
+        set({
+          [s.lockId === "safe" ? "safeUnlocked" : "filmUnlocked"]: true,
+          modal: "lockSuccess",
+          password: "",
+          passwordError: false,
+        });
+        emitGameEvent("password_unlocked", {
+          lockId: s.lockId,
+          floor: definition.floor,
+        });
+        break;
+      }
+      case "lockSuccess":
+        set({ ...emptyLock(), modal: null });
+        break;
       case "ticket":
         set({ hasTicket: true, modal: null });
         emitGameEvent("ticket_collected");
         break;
       case "note":
-        set({
-          hasTicket2: true,
-          hasKey1: true,
-          key1Found: true,
-          modal: null,
-          notice: "Key 01 · CINEMA",
-        });
-        emitGameEvent("cinema_key_collected");
+        set({ modal: null });
         break;
       case "map":
         set({ hasMap: true, modal: null });
@@ -331,6 +437,12 @@ export const useGame = create<State>((set, get) => ({
         set({ modal: null });
     }
   },
+  passwordKey: (code) => {
+    const s = get();
+    if (s.modal === "password") set(editPassword(s, code));
+  },
+  cancelPassword: () =>
+    set({ ...emptyLock(), modal: null, readingOnly: false }),
   tickProjection: (dt) => {
     const s = get();
     if (!s.projectorStarted || s.projectionFinished || s.modal) return;
